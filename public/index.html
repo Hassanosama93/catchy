@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Catchy Finance</title>
+  <!-- Tailwind CSS & Tajawal Font -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+  <!-- Vue 3 & Lucide Icons -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    * { font-family: 'Tajawal', sans-serif; }
+    /* Hide scrollbars for clean app look */
+    ::-webkit-scrollbar { display: none; }
+    body { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 500: '#06b6d4', 600: '#0891b2' },
+            dark: { 900: '#0f172a', 800: '#1e293b', 700: '#334155' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-dark-900 text-slate-100 min-h-screen pb-20 md:pb-6">
+
+<div id="app" class="max-w-5xl mx-auto px-3 sm:px-6 py-4">
+
+  <!-- ================= TOP HEADER ================= -->
+  <header class="flex items-center justify-between bg-dark-800 border border-dark-700 px-4 py-3 rounded-2xl mb-4 shadow-lg">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-black text-xl">
+        CF
+      </div>
+      <div>
+        <h1 class="text-lg font-black text-white">Catchy Finance</h1>
+        <p class="text-xs text-slate-400 flex items-center gap-1">
+          <span>الفرع:</span>
+          <span class="text-cyan-400 font-bold">{{ currentRegion ? currentRegion.name : 'اختر الفرع' }}</span>
+        </p>
+      </div>
+    </div>
+    <!-- Branch Selector Dropdown -->
+    <select v-model="selectedRegionId" @change="onRegionChange" class="bg-dark-900 border border-dark-700 text-cyan-400 text-sm font-bold rounded-xl px-3 py-2 outline-none focus:border-cyan-500">
+      <option v-for="r in regions" :key="r.id" :value="r.id">فرع {{ r.name }}</option>
+    </select>
+  </header>
+
+  <!-- ================= NAVIGATION TABS (ORDERED) ================= -->
+  <!-- Desktop Nav Tabs -->
+  <div class="hidden md:flex gap-2 mb-6 bg-dark-800 p-1.5 rounded-xl border border-dark-700">
+    <button @click="activeTab = 'shift'" :class="tabClass('shift')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+      🚗 الوردية (Shift)
+    </button>
+    <button @click="activeTab = 'reports'" :class="tabClass('reports')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+      📊 التقارير
+    </button>
+    <button @click="activeTab = 'leaves'" :class="tabClass('leaves')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+      🏖️ الإجازات
+    </button>
+    <button @click="activeTab = 'settings'" :class="tabClass('settings')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+      ⚙️ الضبط
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div v-if="loading" class="text-center py-12 text-cyan-400 font-bold text-sm animate-pulse">
+    جاري تحميل البيانات الحسابية...
+  </div>
+
+  <!-- ================= 1. SHIFT VIEW ================= -->
+  <div v-if="!loading && activeTab === 'shift'" class="space-y-4">
+    
+    <!-- Shift Date Header -->
+    <div class="flex items-center justify-between bg-dark-800 border border-dark-700 p-3 rounded-xl">
+      <div class="flex items-center gap-2">
+        <label class="text-xs font-bold text-slate-400">تاريخ الوردية:</label>
+        <input type="date" v-model="shiftDate" @change="loadShift" class="bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1 text-sm text-cyan-400 font-bold outline-none">
+      </div>
+      <span :class="shiftData?.day?.status === 'CLOSED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'" class="text-xs font-bold px-3 py-1 rounded-full border">
+        {{ shiftData?.day?.status === 'CLOSED' ? '🔒 مغلقة ومجمدة' : '🟢 مفتوحة للتسجيل' }}
+      </span>
+    </div>
+
+    <!-- Opening Balances (Compact 3 Cards) -->
+    <div class="grid grid-cols-3 gap-2">
+      <div class="bg-dark-800 border border-dark-700 p-3 rounded-xl text-center">
+        <span class="text-[11px] text-slate-400 block font-medium">الداخل (بداية)</span>
+        <span class="text-base sm:text-lg font-black text-cyan-400">{{ formatNum(shiftData?.day?.opening_inside) }}</span>
+      </div>
+      <div class="bg-dark-800 border border-dark-700 p-3 rounded-xl text-center">
+        <span class="text-[11px] text-slate-400 block font-medium">عهدة كاش (بداية)</span>
+        <span class="text-base sm:text-lg font-black text-cyan-400">{{ formatNum(shiftData?.day?.opening_cash_treasury) }}</span>
+      </div>
+      <div class="bg-dark-800 border border-dark-700 p-3 rounded-xl text-center">
+        <span class="text-[11px] text-slate-400 block font-medium">عهدة انستا (بداية)</span>
+        <span class="text-base sm:text-lg font-black text-cyan-400">{{ formatNum(shiftData?.day?.opening_insta_treasury) }}</span>
+      </div>
+    </div>
+
+    <!-- Orders Revenue Metrics (Compact 3 Cards) -->
+    <div class="bg-dark-800 border border-dark-700 p-3.5 rounded-2xl">
+      <div class="flex items-center justify-between mb-2.5">
+        <h2 class="text-sm font-bold text-slate-200">📋 الطلبات وإيراد اليوم</h2>
+        <button v-if="shiftData?.day?.status === 'OPEN'" @click="showOrderModal = true; resetOrderForm();" class="text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-1.5 rounded-lg transition shadow">
+          + أوردر جديد
+        </button>
+      </div>
+      <div class="grid grid-cols-3 gap-2 mb-3">
+        <div class="bg-dark-900/60 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-slate-400 block">كاش</span>
+          <span class="text-base font-black text-emerald-400">{{ formatNum(shiftData?.revenue?.cash) }}</span>
+        </div>
+        <div class="bg-dark-900/60 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-slate-400 block">انستا</span>
+          <span class="text-base font-black text-purple-400">{{ formatNum(shiftData?.revenue?.insta) }}</span>
+        </div>
+        <div class="bg-dark-900/60 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-slate-400 block">الإجمالي</span>
+          <span class="text-base font-black text-cyan-400">{{ formatNum(shiftData?.revenue?.total) }}</span>
+        </div>
+      </div>
+
+      <!-- Orders List -->
+      <div v-if="shiftData?.orders?.length" class="space-y-2 max-h-72 overflow-y-auto pr-1">
+        <div v-for="o in sortedOrders" :key="o.id" class="bg-dark-900 border border-dark-700/70 p-2.5 rounded-xl flex items-center justify-between text-xs">
+          <div>
+            <div class="font-bold text-slate-200">
+              <span>⏰ {{ o.time }}</span> | <span>👤 {{ o.customer }}</span>
+              <span v-if="o.is_subscription" class="text-cyan-400 font-normal mr-1">(اشتراك)</span>
+            </div>
+            <div v-if="o.notes" class="text-[11px] text-slate-400 mt-0.5">📝 {{ o.notes }}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-black text-slate-200">{{ formatNum(o.price) }} <span class="text-[10px] text-slate-400">({{ o.payment }})</span></span>
+            <div v-if="shiftData?.day?.status === 'OPEN'" class="flex items-center gap-1">
+              <button @click="editOrder(o)" class="text-amber-400 p-1 hover:bg-amber-400/10 rounded">✏️</button>
+              <button @click="deleteOrder(o.id)" class="text-rose-400 p-1 hover:bg-rose-400/10 rounded">❌</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-else class="text-center py-4 text-xs text-slate-500">لا توجد طلبات مسجلة اليوم حتى الآن.</div>
+    </div>
+
+    <!-- Expenses Section -->
+    <div class="bg-dark-800 border border-dark-700 p-3.5 rounded-2xl">
+      <div class="flex items-center justify-between mb-2.5">
+        <h2 class="text-sm font-bold text-slate-200">💸 الخارج والمصروفات</h2>
+        <button v-if="shiftData?.day?.status === 'OPEN'" @click="showExpenseModal = true; resetExpenseForm();" class="text-xs bg-rose-500 hover:bg-rose-600 text-white font-bold px-3 py-1.5 rounded-lg transition shadow">
+          + تسجيل خارج
+        </button>
+      </div>
+      <!-- 4 Compact Cards for Outgoing -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+        <div class="bg-dark-900/60 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-rose-400 block font-bold">إجمالي الخارج</span>
+          <span class="text-base font-black text-rose-400">{{ formatNum(shiftData?.expenses_summary?.total) }}</span>
+        </div>
+        <div class="bg-dark-900/60 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-slate-400 block">من الداخل</span>
+          <span class="text-base font-black text-slate-200">{{ formatNum(shiftData?.expenses_summary?.inside) }}</span>
+        </div>
+        <div class="bg-dark-900/60 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-slate-400 block">من عهدة كاش</span>
+          <span class="text-base font-black text-slate-200">{{ formatNum(shiftData?.expenses_summary?.cash_tr) }}</span>
+        </div>
+        <div class="bg-dark-900/60 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-slate-400 block">من عهدة انستا</span>
+          <span class="text-base font-black text-slate-200">{{ formatNum(shiftData?.expenses_summary?.insta_tr) }}</span>
+        </div>
+      </div>
+
+      <!-- Expenses List -->
+      <div v-if="shiftData?.expenses?.length" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+        <div v-for="e in shiftData.expenses" :key="e.id" class="bg-dark-900 border border-dark-700/70 p-2.5 rounded-xl flex items-center justify-between text-xs">
+          <div>
+            <div class="font-bold text-slate-200">
+              <span>👤 {{ e.person }}</span> <span class="text-slate-400">({{ e.type }})</span>
+            </div>
+            <div v-if="e.notes" class="text-[11px] text-slate-400 mt-0.5">📝 {{ e.notes }}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="font-black text-rose-400">{{ formatNum(e.amount) }} <span class="text-[10px] text-slate-400">({{ e.source }})</span></span>
+            <div v-if="shiftData?.day?.status === 'OPEN'" class="flex items-center gap-1">
+              <button @click="editExpense(e)" class="text-amber-400 p-1 hover:bg-amber-400/10 rounded">✏️</button>
+              <button @click="deleteExpense(e.id)" class="text-rose-400 p-1 hover:bg-rose-400/10 rounded">❌</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-else class="text-center py-4 text-xs text-slate-500">لا توجد مصاريف مسجلة اليوم.</div>
+    </div>
+
+    <!-- Treasury Quick Feed Button -->
+    <div v-if="shiftData?.day?.status === 'OPEN'" class="text-left">
+      <button @click="showTreasuryModal = true" class="text-xs text-cyan-400 hover:text-cyan-300 font-bold bg-dark-800 border border-cyan-500/30 px-3 py-2 rounded-xl">
+        🏦 + تغذية للعهدة في هذه الوردية
+      </button>
+    </div>
+
+    <!-- Ending Balances & Responsibility -->
+    <div class="bg-gradient-to-br from-dark-800 to-dark-900 border border-dark-700 p-4 rounded-2xl space-y-3">
+      <h3 class="text-xs font-bold text-slate-400">📊 رصيد نهاية اليوم اللحظي (التقفيل):</h3>
+      <div class="grid grid-cols-3 gap-2">
+        <div class="bg-dark-900 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-slate-400 block">داخل حالي</span>
+          <span class="text-base font-black text-cyan-400">{{ formatNum(shiftData?.balances?.inside) }}</span>
+        </div>
+        <div class="bg-dark-900 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-slate-400 block">عهدة كاش</span>
+          <span class="text-base font-black text-cyan-400">{{ formatNum(shiftData?.balances?.cash_tr) }}</span>
+        </div>
+        <div class="bg-dark-900 p-2.5 rounded-xl text-center border border-dark-700">
+          <span class="text-[11px] text-slate-400 block">عهدة انستا</span>
+          <span class="text-base font-black text-cyan-400">{{ formatNum(shiftData?.balances?.insta_tr) }}</span>
+        </div>
+      </div>
+
+      <!-- Responsibility Banner -->
+      <div class="bg-cyan-500/10 border border-cyan-500/30 p-3 rounded-xl flex items-center justify-between">
+        <span class="text-xs font-bold text-slate-200">🛡️ إجمالي العهد والمسؤولية:</span>
+        <span class="text-lg font-black text-cyan-400">{{ formatNum(shiftData?.balances?.total_responsibility) }} ج.م</span>
+      </div>
+
+      <!-- Close / Reopen Actions -->
+      <div class="pt-2">
+        <button v-if="shiftData?.day?.status === 'OPEN'" @click="closeShift" class="w-full bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-black py-3 rounded-xl transition shadow-lg text-sm">
+          🔒 إغلاق الوردية وتجميد الأرصدة
+        </button>
+        <button v-else @click="reopenShift" class="w-full bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 text-amber-400 font-bold py-2.5 rounded-xl transition text-sm">
+          🔓 إعادة فتح الوردية للتعديل
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= 2. REPORTS VIEW (EXECUTIVE BI) ================= -->
+  <div v-if="!loading && activeTab === 'reports'" class="space-y-4">
+    <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
+      <div class="flex flex-col sm:flex-row gap-3">
+        <div class="flex-1">
+          <label class="text-xs font-bold text-slate-400 block mb-1">📍 نطاق التقرير:</label>
+          <select v-model="reportScope" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-sm text-cyan-400 font-bold outline-none">
+            <option value="all">🌐 الشركة مجمعة (كل الفروع)</option>
+            <option v-for="r in regions" :key="r.id" :value="r.id">🏢 فرع {{ r.name }}</option>
+          </select>
+        </div>
+        <div class="flex gap-2 flex-1">
+          <div class="flex-1">
+            <label class="text-xs font-bold text-slate-400 block mb-1">من:</label>
+            <input type="date" v-model="reportStart" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-slate-200 outline-none">
+          </div>
+          <div class="flex-1">
+            <label class="text-xs font-bold text-slate-400 block mb-1">إلى:</label>
+            <input type="date" v-model="reportEnd" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-slate-200 outline-none">
+          </div>
+        </div>
+      </div>
+      <button @click="loadReports" class="w-full bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-black py-2.5 rounded-xl text-xs transition">
+        تحديث التقرير 🔄
+      </button>
+    </div>
+
+    <!-- Reports Data -->
+    <div v-if="reportData && !reportData.empty" class="space-y-4">
+      <!-- Revenue Summary -->
+      <div class="grid grid-cols-3 gap-2">
+        <div class="bg-dark-800 border border-dark-700 p-3 rounded-xl text-center">
+          <span class="text-[11px] text-slate-400 block">كاش الطلبات</span>
+          <span class="text-base font-black text-emerald-400">{{ formatNum(reportData.revenue?.cash) }}</span>
+        </div>
+        <div class="bg-dark-800 border border-dark-700 p-3 rounded-xl text-center">
+          <span class="text-[11px] text-slate-400 block">انستا الطلبات</span>
+          <span class="text-base font-black text-purple-400">{{ formatNum(reportData.revenue?.insta) }}</span>
+        </div>
+        <div class="bg-dark-800 border border-dark-700 p-3 rounded-xl text-center">
+          <span class="text-[11px] text-slate-400 block">إجمالي الإيرادات</span>
+          <span class="text-base font-black text-cyan-400">{{ formatNum(reportData.revenue?.total) }}</span>
+        </div>
+      </div>
+
+      <!-- Salary Deductions Section (THE ACCOUNTANT MASTERPIECE) -->
+      <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl">
+        <h3 class="text-sm font-bold text-slate-200 mb-1">👨‍🔧 كشف تسوية الرواتب (المسحوبات التي تُخصم من المرتب)</h3>
+        <p class="text-xs text-slate-400 mb-3">تشمل السلف والمصروفات الشخصية فقط الموزعة على الفروع.</p>
+        
+        <div v-if="reportData.salary_deductions?.length" class="overflow-x-auto">
+          <table class="w-full text-right text-xs">
+            <thead class="bg-dark-900/80 text-slate-400 border-b border-dark-700">
+              <tr>
+                <th class="py-2.5 px-3">الموظف</th>
+                <th v-for="r in regions" :key="r.id" class="py-2.5 px-3">فرع {{ r.name }}</th>
+                <th class="py-2.5 px-3 text-rose-400 font-black">🔴 إجمالي الخصم</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-dark-700/50">
+              <tr v-for="row in reportData.salary_deductions" :key="row.employee" class="hover:bg-dark-900/40">
+                <td class="py-2.5 px-3 font-bold text-white">{{ row.employee }}</td>
+                <td v-for="r in regions" :key="r.id" class="py-2.5 px-3 text-slate-300">{{ formatNum(row[r.name] || 0) }}</td>
+                <td class="py-2.5 px-3 font-black text-rose-400 text-sm">{{ formatNum(row.total) }} ج.م</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="text-center py-4 text-xs text-slate-500">لا توجد سلف أو استقطاعات رواتب مسجلة في هذه الفترة.</div>
+      </div>
+
+      <!-- Operating Expenses (OPEX - Company Expenses) -->
+      <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl">
+        <div class="flex items-center justify-between mb-2">
+          <h3 class="text-sm font-bold text-slate-200">⛽ مصاريف تشغيل الشركة (بنزين، مشتريات، خامات)</h3>
+          <span class="text-xs font-black text-rose-400">الإجمالي: {{ formatNum(reportData.opex_total) }} ج.م</span>
+        </div>
+        <p class="text-xs text-slate-400 mb-3">هذه مبالغ تتحملها الشركة بالكامل لمصلحة العمل وليست سلفاً على العمال.</p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div v-for="op in reportData.opex" :key="op.category" class="bg-dark-900 p-2.5 rounded-xl border border-dark-700 text-xs flex justify-between items-center">
+            <span class="text-slate-300 font-bold">{{ op.category }}</span>
+            <span class="font-black text-rose-400">{{ formatNum(op.amount) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div v-else class="text-center py-10 text-slate-500 text-xs">لا توجد بيانات مسجلة في الفترة المحددة.</div>
+  </div>
+
+  <!-- ================= 3. LEAVES VIEW ================= -->
+  <div v-if="!loading && activeTab === 'leaves'" class="space-y-4">
+    <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl flex items-center justify-between">
+      <div>
+        <h2 class="text-sm font-bold text-slate-200">🏖️ سجل إجازات الشركة</h2>
+        <p class="text-xs text-slate-400">سجل موحد يظهر فيه جميع موظفي الشروق ومدينتي معاً.</p>
+      </div>
+      <button @click="showLeaveModal = true" class="text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-2 rounded-xl transition">
+        + تسجيل إجازة
+      </button>
+    </div>
+
+    <!-- Leaves List -->
+    <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl">
+      <div v-if="leavesList.length" class="space-y-2">
+        <div v-for="l in leavesList" :key="l.id" class="bg-dark-900 border border-dark-700 p-3 rounded-xl flex items-center justify-between text-xs">
+          <div>
+            <span class="font-bold text-white text-sm">👤 {{ l.employee }}</span>
+            <div class="text-slate-400 mt-0.5">
+              <span>📅 {{ l.date }}</span> | <span>📍 فرع: {{ l.branch }}</span> | <span>📝 {{ l.notes }}</span>
+            </div>
+          </div>
+          <button @click="deleteLeave(l.id)" class="text-rose-400 p-1.5 hover:bg-rose-400/10 rounded-lg">❌</button>
+        </div>
+      </div>
+      <div v-else class="text-center py-6 text-slate-500 text-xs">لم يتم تسجيل أي إجازات حتى الآن.</div>
+    </div>
+  </div>
+
+  <!-- ================= 4. SETTINGS VIEW ================= -->
+  <div v-if="!loading && activeTab === 'settings'" class="space-y-4">
+    <!-- Employees Management -->
+    <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
+      <h3 class="text-sm font-bold text-slate-200">👨‍🔧 إدارة الموظفين</h3>
+      <div class="flex gap-2">
+        <input v-model="newEmpName" placeholder="اسم الموظف الجديد..." class="flex-1 bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white outline-none">
+        <button @click="addEmployee" class="bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-4 py-2 rounded-xl text-xs">إضافة</button>
+      </div>
+      <div class="flex flex-wrap gap-2 pt-2">
+        <span v-for="emp in meta.employees" :key="emp" class="bg-dark-900 border border-dark-700 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
+          {{ emp }} <button @click="removeEmployee(emp)" class="text-rose-400 hover:text-rose-300">×</button>
+        </span>
+      </div>
+    </div>
+
+    <!-- Expense Categories Management -->
+    <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
+      <h3 class="text-sm font-bold text-slate-200">🏷️ بنود الخارج والمصروفات</h3>
+      <div class="flex gap-2">
+        <input v-model="newCatName" placeholder="اسم البند (مثال: بنزين، سلفة)..." class="flex-1 bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white outline-none">
+        <button @click="addCategory" class="bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-4 py-2 rounded-xl text-xs">إضافة</button>
+      </div>
+      <div class="flex flex-wrap gap-2 pt-2">
+        <span v-for="cat in meta.categories" :key="cat" class="bg-dark-900 border border-dark-700 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
+          {{ cat }} <button @click="removeCategory(cat)" class="text-rose-400 hover:text-rose-300">×</button>
+        </span>
+      </div>
+    </div>
+
+    <!-- Initial Balances Setter -->
+    <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
+      <h3 class="text-sm font-bold text-slate-200">🏦 ضبط أرصدة البداية لأي يوم</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+        <input type="date" v-model="initBalDate" class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-cyan-400 font-bold">
+        <input type="number" v-model.number="initInside" placeholder="الداخل..." class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+        <input type="number" v-model.number="initCashTr" placeholder="عهدة كاش..." class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+        <input type="number" v-model.number="initInstaTr" placeholder="عهدة انستا..." class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+      </div>
+      <button @click="saveInitialBalances" class="w-full bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2.5 rounded-xl text-xs">
+        حفظ وتحديث أرصدة البداية 💾
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= BOTTOM NAVIGATION BAR (MOBILE ONLY) ================= -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-dark-800/95 backdrop-blur-md border-t border-dark-700 px-2 py-2 flex justify-around items-center z-50">
+    <button @click="activeTab = 'shift'" :class="activeTab === 'shift' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
+      <span class="text-base">🚗</span> <span>الوردية</span>
+    </button>
+    <button @click="activeTab = 'reports'" :class="activeTab === 'reports' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
+      <span class="text-base">📊</span> <span>التقارير</span>
+    </button>
+    <button @click="activeTab = 'leaves'" :class="activeTab === 'leaves' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
+      <span class="text-base">🏖️</span> <span>الإجازات</span>
+    </button>
+    <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
+      <span class="text-base">⚙️</span> <span>الضبط</span>
+    </button>
+  </nav>
+
+  <!-- ================= MODALS ================= -->
+  <!-- 1. Order Modal -->
+  <div v-if="showOrderModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl">
+      <h3 class="text-sm font-bold text-white">{{ orderForm.id ? 'تعديل طلب' : 'إضافة طلب جديد' }}</h3>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">الوقت:</label>
+          <select v-model="orderForm.time" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+            <option v-for="t in timeSlots" :key="t" :value="t">{{ t }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">اسم العميل:</label>
+          <input v-model="orderForm.customer" placeholder="اسم العميل..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        </div>
+      </div>
+      <div class="flex items-center gap-2 py-1">
+        <input type="checkbox" v-model="orderForm.is_sub" id="sub_check" class="rounded bg-dark-900 text-cyan-500">
+        <label for="sub_check" class="text-xs text-slate-300 font-bold">☑️ اشتراك</label>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">السعر (ج.م):</label>
+          <input type="number" v-model.number="orderForm.price" placeholder="اكتب السعر..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">طريقة الدفع:</label>
+          <select v-model="orderForm.payment" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+            <option value="None">None</option>
+            <option value="Cash">Cash</option>
+            <option value="Insta">Insta</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">ملاحظات:</label>
+        <input v-model="orderForm.notes" placeholder="ملاحظات..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button @click="saveOrder" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2 rounded-xl text-xs">حفظ</button>
+        <button @click="showOrderModal = false" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Expense Modal -->
+  <div v-if="showExpenseModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl">
+      <h3 class="text-sm font-bold text-white">{{ expenseForm.id ? 'تعديل خارج' : 'تسجيل خارج جديد' }}</h3>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">الموظف:</label>
+          <select v-model="expenseForm.person" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+            <option v-for="emp in meta.employees" :key="emp" :value="emp">{{ emp }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">نوع الخارج:</label>
+          <select v-model="expenseForm.type" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+            <option v-for="cat in meta.categories" :key="cat" :value="cat">{{ cat }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">المبلغ (ج.م):</label>
+          <input type="number" v-model.number="expenseForm.amount" placeholder="اكتب المبلغ..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">يُخصم من:</label>
+          <select v-model="expenseForm.source" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+            <option value="الداخل">الداخل</option>
+            <option value="عهدة Cash">عهدة Cash</option>
+            <option value="عهدة Insta">عهدة Insta</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">تفاصيل / ملاحظات:</label>
+        <input v-model="expenseForm.notes" placeholder="بيان المصروف..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button @click="saveExpense" class="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 rounded-xl text-xs">حفظ</button>
+        <button @click="showExpenseModal = false" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Treasury Modal -->
+  <div v-if="showTreasuryModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl">
+      <h3 class="text-sm font-bold text-white">➕ تغذية رصيد العهدة</h3>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">نوع العهدة:</label>
+        <select v-model="treasuryForm.type" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+          <option value="عهدة Cash">عهدة Cash</option>
+          <option value="عهدة Insta">عهدة Insta</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">المبلغ المضاف:</label>
+        <input type="number" v-model.number="treasuryForm.amount" placeholder="المبلغ..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+      </div>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">البيان:</label>
+        <input v-model="treasuryForm.desc" placeholder="تغذية عهدة..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button @click="saveTreasury" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2 rounded-xl text-xs">إضافة</button>
+        <button @click="showTreasuryModal = false" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Leave Modal -->
+  <div v-if="showLeaveModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+    <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl">
+      <h3 class="text-sm font-bold text-white">🏖️ تسجيل إجازة موظف</h3>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">الموظف:</label>
+        <select v-model="leaveForm.emp" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+          <option v-for="emp in meta.employees" :key="emp" :value="emp">{{ emp }}</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">تاريخ الإجازة:</label>
+        <input type="date" v-model="leaveForm.date" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+      </div>
+      <div>
+        <label class="text-[11px] text-slate-400 block mb-1">السبب / الملاحظات:</label>
+        <input v-model="leaveForm.notes" placeholder="أسبوعية، عارضة..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+      </div>
+      <div class="flex gap-2 pt-2">
+        <button @click="saveLeave" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2 rounded-xl text-xs">تسجيل</button>
+        <button @click="showLeaveModal = false" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Vue Logic Script -->
+<script>
+  const { createApp, ref, computed, onMounted } = Vue;
+
+  createApp({
+    setup() {
+      const activeTab = ref('shift');
+      const loading = ref(false);
+      const regions = ref([]);
+      const selectedRegionId = ref(null);
+      const shiftDate = ref(new Date().toISOString().split('T')[0]);
+      const shiftData = ref(null);
+      const meta = ref({ employees: [], categories: [] });
+
+      // Reports State
+      const reportScope = ref('all');
+      const reportStart = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
+      const reportEnd = ref(new Date().toISOString().split('T')[0]);
+      const reportData = ref(null);
+
+      // Leaves State
+      const leavesList = ref([]);
+
+      // Settings State
+      const newEmpName = ref('');
+      const newCatName = ref('');
+      const initBalDate = ref(new Date().toISOString().split('T')[0]);
+      const initInside = ref(0);
+      const initCashTr = ref(0);
+      const initInstaTr = ref(0);
+
+      // Modals
+      const showOrderModal = ref(false);
+      const showExpenseModal = ref(false);
+      const showTreasuryModal = ref(false);
+      const showLeaveModal = ref(false);
+
+      const timeSlots = [
+        "3:00 - 4:00", "3:00 - 4:30", "4:00 - 5:00", "5:00 - 6:00", "5:00 - 6:30",
+        "6:00 - 7:00", "6:30 - 8:00", "7:00 - 8:00", "8:00 - 9:00", "8:00 - 9:30",
+        "9:00 - 10:00", "9:30 - 11:00", "10:00 - 11:00", "10:00 - 11:30", "11:00 - 12:00",
+        "11:30 - 1:00", "12:00 - 1:30", "1:00 - 2:00", "1:30 - 3:00", "2:00 - 3:00"
+      ];
+
+      const orderForm = ref({ id: null, time: timeSlots[0], customer: '', is_sub: false, price: null, payment: 'None', notes: '' });
+      const expenseForm = ref({ id: null, person: '', type: '', amount: null, source: 'الداخل', notes: '' });
+      const treasuryForm = ref({ type: 'عهدة Cash', amount: null, desc: 'تغذية عهدة' });
+      const leaveForm = ref({ emp: '', date: new Date().toISOString().split('T')[0], notes: 'إجازة' });
+
+      const currentRegion = computed(() => regions.value.find(r => r.id === selectedRegionId.value));
+
+      const sortedOrders = computed(() => {
+        if (!shiftData.value?.orders) return [];
+        return [...shiftData.value.orders].sort((a, b) => {
+          let idxA = timeSlots.indexOf(a.time);
+          let idxB = timeSlots.indexOf(b.time);
+          return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+        });
+      });
+
+      const tabClass = (tab) => {
+        return activeTab.value === tab 
+          ? 'bg-cyan-500 text-dark-900 shadow-md' 
+          : 'text-slate-400 hover:text-white hover:bg-dark-700/50';
+      };
+
+      const formatNum = (n) => {
+        if (n === undefined || n === null) return '0';
+        return Math.round(n).toLocaleString('en-US');
+      };
+
+      // API Calls
+      const loadInitial = async () => {
+        loading.value = true;
+        try {
+          const res = await fetch('/api/regions');
+          regions.value = await res.json();
+          if (regions.value.length) {
+            selectedRegionId.value = regions.value[0].id;
+          }
+          await loadMeta();
+          await loadShift();
+          await loadLeaves();
+        } catch (e) {
+          console.error(e);
+        } finally {
+          loading.value = false;
+        }
+      };
+
+      const loadMeta = async () => {
+        const res = await fetch('/api/meta');
+        meta.value = await res.json();
+        if (meta.value.employees.length) {
+          expenseForm.value.person = meta.value.employees[0];
+          leaveForm.value.emp = meta.value.employees[0];
+        }
+        if (meta.value.categories.length) {
+          expenseForm.value.type = meta.value.categories[0];
+        }
+      };
+
+      const loadShift = async () => {
+        if (!selectedRegionId.value) return;
+        const res = await fetch(`/api/shift?region_id=${selectedRegionId.value}&date_str=${shiftDate.value}`);
+        shiftData.value = await res.json();
+      };
+
+      const onRegionChange = () => {
+        loadShift();
+      };
+
+      // Orders
+      const resetOrderForm = () => {
+        orderForm.value = { id: null, time: timeSlots[0], customer: '', is_sub: false, price: null, payment: 'None', notes: '' };
+      };
+
+      const editOrder = (o) => {
+        orderForm.value = { id: o.id, time: o.time, customer: o.customer, is_sub: o.is_subscription, price: o.price, payment: o.payment, notes: o.notes };
+        showOrderModal.value = true;
+      };
+
+      const saveOrder = async () => {
+        const payload = {
+          business_day_id: shiftData.value.day.id,
+          order_time: orderForm.value.time,
+          customer_name: orderForm.value.customer || 'بدون اسم',
+          is_subscription: orderForm.value.is_sub,
+          price: orderForm.value.price || 0,
+          payment_method: orderForm.value.payment,
+          notes: orderForm.value.notes
+        };
+        if (orderForm.value.id) {
+          await fetch(`/api/orders/${orderForm.value.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        } else {
+          await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        }
+        showOrderModal.value = false;
+        loadShift();
+      };
+
+      const deleteOrder = async (id) => {
+        if (confirm('هل أنت متأكد من حذف الطلب؟')) {
+          await fetch(`/api/orders/${id}`, { method: 'DELETE' });
+          loadShift();
+        }
+      };
+
+      // Expenses
+      const resetExpenseForm = () => {
+        expenseForm.value = { id: null, person: meta.value.employees[0] || 'عام', type: meta.value.categories[0] || 'عام', amount: null, source: 'الداخل', notes: '' };
+      };
+
+      const editExpense = (e) => {
+        expenseForm.value = { id: e.id, person: e.person, type: e.type, amount: e.amount, source: e.source, notes: e.notes };
+        showExpenseModal.value = true;
+      };
+
+      const saveExpense = async () => {
+        if (!expenseForm.value.amount) return alert('الرجاء كتابة المبلغ');
+        const payload = {
+          business_day_id: shiftData.value.day.id,
+          person_entity: expenseForm.value.person,
+          expense_type: expenseForm.value.type,
+          amount: expenseForm.value.amount,
+          source: expenseForm.value.source,
+          description: expenseForm.value.notes
+        };
+        if (expenseForm.value.id) {
+          await fetch(`/api/expenses/${expenseForm.value.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        } else {
+          await fetch('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        }
+        showExpenseModal.value = false;
+        loadShift();
+      };
+
+      const deleteExpense = async (id) => {
+        if (confirm('هل أنت متأكد من حذف هذا المصروف؟')) {
+          await fetch(`/api/expenses/${id}`, { method: 'DELETE' });
+          loadShift();
+        }
+      };
+
+      // Shift Actions
+      const closeShift = async () => {
+        if (confirm('هل أنت متأكد من إغلاق الوردية وتجميد الأرصدة؟')) {
+          await fetch(`/api/shift/${shiftData.value.day.id}/close`, { method: 'POST' });
+          loadShift();
+        }
+      };
+
+      const reopenShift = async () => {
+        if (confirm('هل تريد إعادة فتح الوردية للتعديل؟')) {
+          await fetch(`/api/shift/${shiftData.value.day.id}/reopen`, { method: 'POST' });
+          loadShift();
+        }
+      };
+
+      const saveTreasury = async () => {
+        if (!treasuryForm.value.amount) return;
+        await fetch('/api/treasury-feed', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            business_day_id: shiftData.value.day.id,
+            treasury_type: treasuryForm.value.type,
+            amount: treasuryForm.value.amount,
+            description: treasuryForm.value.desc
+          })
+        });
+        showTreasuryModal.value = false;
+        loadShift();
+      };
+
+      // Reports
+      const loadReports = async () => {
+        let url = `/api/reports?start_date=${reportStart.value}&end_date=${reportEnd.value}`;
+        if (reportScope.value !== 'all') url += `&region_id=${reportScope.value}`;
+        const res = await fetch(url);
+        reportData.value = await res.json();
+      };
+
+      // Leaves
+      const loadLeaves = async () => {
+        const res = await fetch('/api/leaves');
+        leavesList.value = await res.json();
+      };
+
+      const saveLeave = async () => {
+        await fetch('/api/leaves', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            region_id: selectedRegionId.value,
+            employee_name: leaveForm.value.emp,
+            leave_date: leaveForm.value.date,
+            notes: leaveForm.value.notes
+          })
+        });
+        showLeaveModal.value = false;
+        loadLeaves();
+      };
+
+      const deleteLeave = async (id) => {
+        if (confirm('حذف الإجازة؟')) {
+          await fetch(`/api/leaves/${id}`, { method: 'DELETE' });
+          loadLeaves();
+        }
+      };
+
+      // Settings
+      const addEmployee = async () => {
+        if (!newEmpName.value.trim()) return;
+        await fetch(`/api/employees?name=${encodeURIComponent(newEmpName.value)}&region_id=${selectedRegionId.value}`, { method: 'POST' });
+        newEmpName.value = '';
+        loadMeta();
+      };
+
+      const removeEmployee = async (name) => {
+        if (confirm(`حذف الموظف ${name}؟`)) {
+          await fetch(`/api/employees?name=${encodeURIComponent(name)}`, { method: 'DELETE' });
+          loadMeta();
+        }
+      };
+
+      const addCategory = async () => {
+        if (!newCatName.value.trim()) return;
+        await fetch(`/api/categories?name=${encodeURIComponent(newCatName.value)}`, { method: 'POST' });
+        newCatName.value = '';
+        loadMeta();
+      };
+
+      const removeCategory = async (name) => {
+        if (confirm(`حذف البند ${name}؟`)) {
+          await fetch(`/api/categories?name=${encodeURIComponent(name)}`, { method: 'DELETE' });
+          loadMeta();
+        }
+      };
+
+      const saveInitialBalances = async () => {
+        await fetch(`/api/initial-balances?region_id=${selectedRegionId.value}&date_str=${initBalDate.value}&inside=${initInside.value}&cash_tr=${initCashTr.value}&insta_tr=${initInstaTr.value}`, { method: 'POST' });
+        alert('تم تحديث أرصدة البداية بنجاح!');
+        loadShift();
+      };
+
+      onMounted(() => {
+        loadInitial();
+      });
+
+      return {
+        activeTab, loading, regions, selectedRegionId, currentRegion, shiftDate, shiftData,
+        sortedOrders, timeSlots, meta, reportScope, reportStart, reportEnd, reportData,
+        leavesList, newEmpName, newCatName, initBalDate, initInside, initCashTr, initInstaTr,
+        showOrderModal, showExpenseModal, showTreasuryModal, showLeaveModal,
+        orderForm, expenseForm, treasuryForm, leaveForm,
+        tabClass, formatNum, loadShift, onRegionChange,
+        resetOrderForm, editOrder, saveOrder, deleteOrder,
+        resetExpenseForm, editExpense, saveExpense, deleteExpense,
+        closeShift, reopenShift, saveTreasury, loadReports, saveLeave, deleteLeave,
+        addEmployee, removeEmployee, addCategory, removeCategory, saveInitialBalances
+      };
+    }
+  }).mount('#app');
+</script>
+</body>
+</html>
