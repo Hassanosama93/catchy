@@ -123,13 +123,10 @@ app.add_middleware(
 )
 
 def get_db():
-    if not SessionLocal:
-        raise HTTPException(status_code=500, detail="Database connection not configured")
+    if not SessionLocal: raise HTTPException(status_code=500, detail="Database not configured")
     db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+    try: yield db
+    finally: db.close()
 
 # Pydantic Schemas
 class OrderIn(BaseModel):
@@ -203,7 +200,6 @@ def get_shift(region_id: int, date_str: str, db: Session = Depends(get_db)):
             current_day.opening_insta_treasury = p_insta
             db.commit()
 
-    # Calculations
     day_id = current_day.id
     orders = db.query(Order).filter(Order.business_day_id == day_id).all()
     expenses = db.query(Expense).filter(Expense.business_day_id == day_id).all()
@@ -239,23 +235,23 @@ def get_shift(region_id: int, date_str: str, db: Session = Depends(get_db)):
         "expenses_summary": {"inside": int(exp_inside), "cash_tr": int(exp_cash_tr), "insta_tr": int(exp_insta_tr), "total": int(total_exp)},
         "balances": {"inside": int(curr_inside), "cash_tr": int(curr_cash_tr), "insta_tr": int(curr_insta_tr), "total_responsibility": int(total_resp)},
         "orders": [{"id": o.id, "time": o.order_time, "customer": o.customer_name, "is_subscription": o.is_subscription, "price": int(o.price), "payment": o.payment_method.value, "notes": o.notes or ""} for o in orders],
-        "expenses": [{"id": e.id, "person": e.person_entity, "type": e.expense_type, "amount": int(e.amount), "source": e.source.value, "notes": e.description or ""} for e in expenses]
+        "expenses": [{"id": e.id, "person": e.person_entity, "type": e.expense_type, "amount": int(e.amount), "source": e.source.value, "notes": e.description or ""} for e in expenses],
+        "treasury_movements": [{"id": m.id, "type": m.treasury_type.value, "amount": int(m.amount), "desc": m.description or "تغذية عهدة"} for m in movements]
     }
 
-# Orders CRUD
+# Orders
 @app.post("/api/orders")
 def add_order(payload: OrderIn, db: Session = Depends(get_db)):
     pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
     price = payload.price if pm != PaymentMethod.none else 0.0
-    o = Order(business_day_id=payload.business_day_id, order_time=payload.order_time, customer_name=payload.customer_name, is_subscription=payload.is_subscription, price=price, payment_method=pm, notes=payload.notes)
-    db.add(o)
+    db.add(Order(business_day_id=payload.business_day_id, order_time=payload.order_time, customer_name=payload.customer_name, is_subscription=payload.is_subscription, price=price, payment_method=pm, notes=payload.notes))
     db.commit()
     return {"status": "ok"}
 
 @app.put("/api/orders/{order_id}")
 def update_order(order_id: int, payload: OrderIn, db: Session = Depends(get_db)):
     o = db.query(Order).get(order_id)
-    if not o: raise HTTPException(status_code=404, detail="Order not found")
+    if not o: raise HTTPException(status_code=404)
     pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
     o.order_time = payload.order_time
     o.customer_name = payload.customer_name
@@ -272,19 +268,18 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Expenses CRUD
+# Expenses
 @app.post("/api/expenses")
 def add_expense(payload: ExpenseIn, db: Session = Depends(get_db)):
     src = ExpenseSource.inside if payload.source == "الداخل" else (ExpenseSource.cash_treasury if payload.source == "عهدة Cash" else ExpenseSource.insta_treasury)
-    e = Expense(business_day_id=payload.business_day_id, person_entity=payload.person_entity, expense_type=payload.expense_type, amount=payload.amount, source=src, description=payload.description)
-    db.add(e)
+    db.add(Expense(business_day_id=payload.business_day_id, person_entity=payload.person_entity, expense_type=payload.expense_type, amount=payload.amount, source=src, description=payload.description))
     db.commit()
     return {"status": "ok"}
 
 @app.put("/api/expenses/{expense_id}")
 def update_expense(expense_id: int, payload: ExpenseIn, db: Session = Depends(get_db)):
     e = db.query(Expense).get(expense_id)
-    if not e: raise HTTPException(status_code=404, detail="Expense not found")
+    if not e: raise HTTPException(status_code=404)
     src = ExpenseSource.inside if payload.source == "الداخل" else (ExpenseSource.cash_treasury if payload.source == "عهدة Cash" else ExpenseSource.insta_treasury)
     e.person_entity = payload.person_entity
     e.expense_type = payload.expense_type
@@ -300,12 +295,25 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
+# Treasury Movements (مع دالة الحذف)
+@app.post("/api/treasury-feed")
+def add_treasury(payload: TreasuryIn, db: Session = Depends(get_db)):
+    tt = TreasuryType.cash if payload.treasury_type == "عهدة Cash" else TreasuryType.insta
+    db.add(TreasuryMovement(business_day_id=payload.business_day_id, treasury_type=tt, movement_type=MovementType.addition, amount=payload.amount, description=payload.description))
+    db.commit()
+    return {"status": "ok"}
+
+@app.delete("/api/treasury-movements/{movement_id}")
+def delete_treasury_movement(movement_id: int, db: Session = Depends(get_db)):
+    db.query(TreasuryMovement).filter(TreasuryMovement.id == movement_id).delete()
+    db.commit()
+    return {"status": "ok"}
+
 # Shift Control
 @app.post("/api/shift/{day_id}/close")
 def close_shift(day_id: int, db: Session = Depends(get_db)):
     d = db.query(BusinessDay).get(day_id)
     if not d: raise HTTPException(status_code=404)
-    # Calculate current balances
     orders = db.query(Order).filter(Order.business_day_id == day_id).all()
     expenses = db.query(Expense).filter(Expense.business_day_id == day_id).all()
     movements = db.query(TreasuryMovement).filter(TreasuryMovement.business_day_id == day_id).all()
@@ -332,15 +340,7 @@ def reopen_shift(day_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-@app.post("/api/treasury-feed")
-def add_treasury(payload: TreasuryIn, db: Session = Depends(get_db)):
-    tt = TreasuryType.cash if payload.treasury_type == "عهدة Cash" else TreasuryType.insta
-    m = TreasuryMovement(business_day_id=payload.business_day_id, treasury_type=tt, movement_type=MovementType.addition, amount=payload.amount, description=payload.description)
-    db.add(m)
-    db.commit()
-    return {"status": "ok"}
-
-# 5. Reports Engine (Executive BI)
+# Reports
 @app.get("/api/reports")
 def get_reports(start_date: str, end_date: str, region_id: Optional[int] = None, db: Session = Depends(get_db)):
     s_d = datetime.strptime(start_date, "%Y-%m-%d").date()
@@ -351,20 +351,17 @@ def get_reports(start_date: str, end_date: str, region_id: Optional[int] = None,
         q = q.filter(BusinessDay.region_id == region_id)
     days = q.all()
     day_ids = [d.id for d in days]
-    if not day_ids:
-        return {"empty": True}
+    if not day_ids: return {"empty": True}
 
     regions = db.query(Region).all()
     reg_map = {r.id: r.name for r in regions}
     day_map = {d.id: {"date": d.business_date.strftime("%Y-%m-%d"), "region": reg_map.get(d.region_id, "عام")} for d in days}
 
-    # Revenue
     orders = db.query(Order).filter(Order.business_day_id.in_(day_ids)).all()
     cash_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
     insta_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.insta])
     total_rev = cash_rev + insta_rev
 
-    # Branch comparisons
     branch_rev = []
     for r in regions:
         b_days = [d.id for d in days if d.region_id == r.id]
@@ -374,18 +371,13 @@ def get_reports(start_date: str, end_date: str, region_id: Optional[int] = None,
             i_r = sum([float(o.price) for o in b_orders if o.payment_method == PaymentMethod.insta])
             branch_rev.append({"name": r.name, "cash": int(c_r), "insta": int(i_r), "total": int(c_r + i_r)})
 
-    # Expenses & Separation Logic
     expenses = db.query(Expense).filter(Expense.business_day_id.in_(day_ids)).all()
-    
     def is_deductible(t):
         s = str(t).strip()
         return ("سلف" in s) or ("مصروف" in s and "بنزين" not in s and "سكن" not in s)
 
-    # Salary Deductions Pivot (Employee -> Branches -> Total)
     emp_deductions = {}
     opex_categories = {}
-    all_employees = sorted(list(set([e.person_entity for e in expenses])))
-
     for e in expenses:
         info = day_map.get(e.business_day_id, {"date": "", "region": ""})
         amt = int(e.amount)
@@ -398,7 +390,6 @@ def get_reports(start_date: str, end_date: str, region_id: Optional[int] = None,
         else:
             opex_categories[e.expense_type] = opex_categories.get(e.expense_type, 0) + amt
 
-    # Convert to list for UI
     salary_table = []
     for emp, data in emp_deductions.items():
         row = {"employee": emp, "total": data["total"]}
@@ -407,8 +398,6 @@ def get_reports(start_date: str, end_date: str, region_id: Optional[int] = None,
         salary_table.append(row)
 
     opex_table = [{"category": k, "amount": v} for k, v in sorted(opex_categories.items(), key=lambda x: x[1], reverse=True)]
-
-    # Treasury totals
     in_exp = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.inside])
     cash_tr_exp = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.cash_treasury])
     insta_tr_exp = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.insta_treasury])
@@ -424,7 +413,7 @@ def get_reports(start_date: str, end_date: str, region_id: Optional[int] = None,
         "raw_expenses": [{"date": day_map.get(e.business_day_id, {}).get("date"), "branch": day_map.get(e.business_day_id, {}).get("region"), "person": e.person_entity, "type": e.expense_type, "amount": int(e.amount), "source": e.source.value, "notes": e.description or "", "is_deductible": is_deductible(e.expense_type)} for e in expenses]
     }
 
-# 6. Leaves
+# Leaves
 @app.get("/api/leaves")
 def get_leaves(db: Session = Depends(get_db)):
     regions = {r.id: r.name for r in db.query(Region).all()}
@@ -434,8 +423,7 @@ def get_leaves(db: Session = Depends(get_db)):
 @app.post("/api/leaves")
 def add_leave(payload: LeaveIn, db: Session = Depends(get_db)):
     l_date = datetime.strptime(payload.leave_date, "%Y-%m-%d").date()
-    l = Leave(region_id=payload.region_id, employee_name=payload.employee_name, leave_date=l_date, notes=payload.notes)
-    db.add(l)
+    db.add(Leave(region_id=payload.region_id, employee_name=payload.employee_name, leave_date=l_date, notes=payload.notes))
     db.commit()
     return {"status": "ok"}
 
@@ -445,13 +433,12 @@ def delete_leave(leave_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# 7. Metadata / Settings
+# Settings
 @app.get("/api/meta")
 def get_meta(db: Session = Depends(get_db)):
     emps = [e.name for e in db.query(Employee).filter(Employee.is_active == True).all()]
     cats = [c.name for c in db.query(ExpenseCategory).filter(ExpenseCategory.is_active == True).all()]
-    if not cats:
-        cats = ["سلفة", "مصروف شخصي", "بنزين", "مشتريات خامات", "سكن", "بوفيه", "تيبس"]
+    if not cats: cats = ["سلفة", "مصروف شخصي", "بنزين", "مشتريات خامات", "سكن", "بوفيه", "تيبس"]
     return {"employees": sorted(list(set(emps))), "categories": sorted(list(set(cats)))}
 
 @app.post("/api/employees")
