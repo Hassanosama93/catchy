@@ -522,18 +522,34 @@
     </div>
 
     <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
-      <h3 class="text-sm font-bold text-slate-200">🏦 ضبط أرصدة البداية لأي يوم</h3>
-      <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-        <input type="date" v-model="initBalDate" @click="$event.target.showPicker && $event.target.showPicker()" class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-cyan-400 font-bold cursor-pointer">
-        <input type="number" v-model.number="initInside" placeholder="الداخل..." class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
-        <input type="number" v-model.number="initCashTr" placeholder="عهدة كاش..." class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
-        <input type="number" v-model.number="initInstaTr" placeholder="عهدة انستا..." class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+      <div>
+        <h3 class="text-sm font-bold text-slate-200">🏦 ضبط أرصدة البداية لأي يوم</h3>
+        <p class="text-[11px] text-slate-400 mt-0.5">تحديد رصيد الانطلاق الذي يبدأ به اليوم المختار لكل مسار.</p>
       </div>
-      <button @click="saveInitialBalances" class="w-full bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2.5 rounded-xl text-xs">
+
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+        <div>
+          <label class="text-[11px] text-slate-400 font-bold block mb-1">📅 التاريخ:</label>
+          <input type="date" v-model="initBalDate" @click="$event.target.showPicker && $event.target.showPicker()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-cyan-400 font-bold cursor-pointer">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 font-bold block mb-1">💵 بداية الداخل:</label>
+          <input type="number" v-model.number="initInside" placeholder="0" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 font-bold block mb-1">🏦 بداية عهدة كاش:</label>
+          <input type="number" v-model.number="initCashTr" placeholder="0" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 font-bold block mb-1">📱 بداية عهدة انستا:</label>
+          <input type="number" v-model.number="initInstaTr" placeholder="0" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold">
+        </div>
+      </div>
+
+      <button @click="saveInitialBalances" class="w-full bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-black py-2.5 rounded-xl text-xs transition shadow">
         حفظ وتحديث أرصدة البداية 💾
       </button>
     </div>
-  </div>
 
   <!-- ================= BOTTOM NAVIGATION BAR (MOBILE) ================= -->
   <nav class="no-print md:hidden fixed bottom-0 left-0 right-0 bg-dark-800/95 backdrop-blur-md border-t border-dark-700 px-2 py-2 flex justify-around items-center z-50">
