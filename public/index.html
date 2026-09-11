@@ -26,11 +26,17 @@
       header, nav, button, select, input, .no-print {
         display: none !important;
       }
+      /* إلغاء السكرول تماماً وإظهار كل الطلبات والمصاريف بالكامل */
+      .overflow-y-auto, .overflow-x-auto, [class*="max-h-"] {
+        max-height: none !important;
+        overflow: visible !important;
+        height: auto !important;
+      }
       /* تحويل الكروت لورق رسمي واضح للطباعة */
       div[class*="bg-dark-"], div[class*="border-dark-"] {
         background: #ffffff !important;
         color: #000000 !important;
-        border: 1px solid #cbd5e1 !important;
+        border: 1px solid #94a3b8 !important;
         box-shadow: none !important;
       }
       span, h1, h2, h3, h4, th, td, p, div {
@@ -38,9 +44,9 @@
       }
       .print-header {
         display: block !important;
-        margin-bottom: 15px;
+        margin-bottom: 20px;
         border-bottom: 2px solid #000;
-        padding-bottom: 10px;
+        padding-bottom: 12px;
       }
       .text-cyan-400, .text-emerald-400, .text-rose-400 {
         color: #000000 !important;
@@ -69,8 +75,12 @@
 
   <!-- ================= PRINT ONLY OFFICIAL HEADER ================= -->
   <div class="print-header text-center">
-    <h1 class="text-xl font-black">شركة كادشي للخدمات - تقرير محاسبي رسمي</h1>
-    <p class="text-sm font-bold">الفرع: {{ currentRegion ? currentRegion.name : 'كل الفروع' }} | تاريخ الاستخراج: {{ new Date().toLocaleDateString('ar-EG') }}</p>
+    <h1 class="text-2xl font-black text-black">شركة كاتشي</h1>
+    <p class="text-sm font-bold text-black mt-1">
+      <span v-if="activeTab === 'shift'">📋 تقرير تقفيل وردية | يوم: {{ shiftDate }} | فرع: {{ currentRegion ? currentRegion.name : 'غير محدد' }}</span>
+      <span v-else>📊 تقرير مالي وإداري للفترة من {{ reportStart }} إلى {{ reportEnd }} | {{ reportScope === 'all' ? '🌐 كل فروع الشركة' : '🏢 فرع ' + (currentRegion ? currentRegion.name : '') }}</span>
+    </p>
+    <p class="text-[11px] text-slate-700 mt-0.5">تاريخ ووقت الاستخراج: {{ new Date().toLocaleString('ar-EG') }}</p>
   </div>
 
   <!-- ================= TOP HEADER (SCREEN ONLY) ================= -->
