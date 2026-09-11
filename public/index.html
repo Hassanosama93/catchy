@@ -7,14 +7,47 @@
   <!-- Tailwind CSS & Tajawal Font -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
-  <!-- Vue 3 & Lucide Icons -->
+  <!-- Vue 3 -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     * { font-family: 'Tajawal', sans-serif; }
-    /* Hide scrollbars for clean app look */
     ::-webkit-scrollbar { display: none; }
     body { -ms-overflow-style: none; scrollbar-width: none; }
+    input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.8); }
+
+    /* ================= STYLES FOR CLEAN PDF EXPORT ================= */
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding-bottom: 0 !important;
+      }
+      /* إخفاء كل أدوات التحكم والأزرار والقوائم عند تصدير الـ PDF */
+      header, nav, button, select, input, .no-print {
+        display: none !important;
+      }
+      /* تحويل الكروت لورق رسمي واضح للطباعة */
+      div[class*="bg-dark-"], div[class*="border-dark-"] {
+        background: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #cbd5e1 !important;
+        box-shadow: none !important;
+      }
+      span, h1, h2, h3, h4, th, td, p, div {
+        color: #000000 !important;
+      }
+      .print-header {
+        display: block !important;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #000;
+        padding-bottom: 10px;
+      }
+      .text-cyan-400, .text-emerald-400, .text-rose-400 {
+        color: #000000 !important;
+        font-weight: 900 !important;
+      }
+    }
+    .print-header { display: none; }
   </style>
   <script>
     tailwind.config = {
@@ -34,8 +67,14 @@
 
 <div id="app" class="max-w-5xl mx-auto px-3 sm:px-6 py-4">
 
-  <!-- ================= TOP HEADER ================= -->
-  <header class="flex items-center justify-between bg-dark-800 border border-dark-700 px-4 py-3 rounded-2xl mb-4 shadow-lg">
+  <!-- ================= PRINT ONLY OFFICIAL HEADER ================= -->
+  <div class="print-header text-center">
+    <h1 class="text-xl font-black">شركة كادشي للخدمات - تقرير محاسبي رسمي</h1>
+    <p class="text-sm font-bold">الفرع: {{ currentRegion ? currentRegion.name : 'كل الفروع' }} | تاريخ الاستخراج: {{ new Date().toLocaleDateString('ar-EG') }}</p>
+  </div>
+
+  <!-- ================= TOP HEADER (SCREEN ONLY) ================= -->
+  <header class="no-print flex items-center justify-between bg-dark-800 border border-dark-700 px-4 py-3 rounded-2xl mb-4 shadow-lg">
     <div class="flex items-center gap-3">
       <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-black text-xl">
         CF
@@ -48,15 +87,13 @@
         </p>
       </div>
     </div>
-    <!-- Branch Selector Dropdown -->
     <select v-model="selectedRegionId" @change="onRegionChange" class="bg-dark-900 border border-dark-700 text-cyan-400 text-sm font-bold rounded-xl px-3 py-2 outline-none focus:border-cyan-500">
       <option v-for="r in regions" :key="r.id" :value="r.id">فرع {{ r.name }}</option>
     </select>
   </header>
 
-  <!-- ================= NAVIGATION TABS (ORDERED) ================= -->
-  <!-- Desktop Nav Tabs -->
-  <div class="hidden md:flex gap-2 mb-6 bg-dark-800 p-1.5 rounded-xl border border-dark-700">
+  <!-- ================= NAVIGATION TABS (SCREEN ONLY) ================= -->
+  <div class="no-print hidden md:flex gap-2 mb-6 bg-dark-800 p-1.5 rounded-xl border border-dark-700">
     <button @click="activeTab = 'shift'" :class="tabClass('shift')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
       🚗 الوردية (Shift)
     </button>
@@ -71,26 +108,30 @@
     </button>
   </div>
 
-  <!-- Loading State -->
   <div v-if="loading" class="text-center py-12 text-cyan-400 font-bold text-sm animate-pulse">
     جاري تحميل البيانات الحسابية...
   </div>
 
   <!-- ================= 1. SHIFT VIEW ================= -->
   <div v-if="!loading && activeTab === 'shift'" class="space-y-4">
-    
-    <!-- Shift Date Header -->
     <div class="flex items-center justify-between bg-dark-800 border border-dark-700 p-3 rounded-xl">
       <div class="flex items-center gap-2">
         <label class="text-xs font-bold text-slate-400">تاريخ الوردية:</label>
-        <input type="date" v-model="shiftDate" @change="loadShift" class="bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1 text-sm text-cyan-400 font-bold outline-none">
+        <input type="date" v-model="shiftDate" @change="loadShift" @click="$event.target.showPicker && $event.target.showPicker()" class="bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1 text-sm text-cyan-400 font-bold outline-none cursor-pointer">
       </div>
-      <span :class="shiftData?.day?.status === 'CLOSED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'" class="text-xs font-bold px-3 py-1 rounded-full border">
-        {{ shiftData?.day?.status === 'CLOSED' ? '🔒 مغلقة ومجمدة' : '🟢 مفتوحة للتسجيل' }}
-      </span>
+      
+      <!-- PDF Button for Shift -->
+      <div class="flex items-center gap-2">
+        <button @click="exportPDF" class="no-print text-xs bg-dark-700 hover:bg-dark-600 text-slate-200 font-bold px-3 py-1.5 rounded-xl border border-dark-600 flex items-center gap-1.5 shadow">
+          <span>📄 تصدير PDF / طباعة</span>
+        </button>
+        <span :class="shiftData?.day?.status === 'CLOSED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'" class="text-xs font-bold px-3 py-1 rounded-full border">
+          {{ shiftData?.day?.status === 'CLOSED' ? '🔒 مغلقة ومجمدة' : '🟢 مفتوحة' }}
+        </span>
+      </div>
     </div>
 
-    <!-- Opening Balances (Compact 3 Cards) -->
+    <!-- Opening Balances -->
     <div class="grid grid-cols-3 gap-2">
       <div class="bg-dark-800 border border-dark-700 p-3 rounded-xl text-center">
         <span class="text-[11px] text-slate-400 block font-medium">الداخل (بداية)</span>
@@ -106,11 +147,11 @@
       </div>
     </div>
 
-    <!-- Orders Revenue Metrics (Compact 3 Cards) -->
+    <!-- Orders Revenue -->
     <div class="bg-dark-800 border border-dark-700 p-3.5 rounded-2xl">
       <div class="flex items-center justify-between mb-2.5">
         <h2 class="text-sm font-bold text-slate-200">📋 الطلبات وإيراد اليوم</h2>
-        <button v-if="shiftData?.day?.status === 'OPEN'" @click="showOrderModal = true; resetOrderForm();" class="text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-1.5 rounded-lg transition shadow">
+        <button v-if="shiftData?.day?.status === 'OPEN'" @click="showOrderModal = true; resetOrderForm();" class="no-print text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-1.5 rounded-lg transition shadow">
           + أوردر جديد
         </button>
       </div>
@@ -141,7 +182,7 @@
           </div>
           <div class="flex items-center gap-2">
             <span class="font-black text-slate-200">{{ formatNum(o.price) }} <span class="text-[10px] text-slate-400">({{ o.payment }})</span></span>
-            <div v-if="shiftData?.day?.status === 'OPEN'" class="flex items-center gap-1">
+            <div v-if="shiftData?.day?.status === 'OPEN'" class="no-print flex items-center gap-1">
               <button @click="editOrder(o)" class="text-amber-400 p-1 hover:bg-amber-400/10 rounded">✏️</button>
               <button @click="deleteOrder(o.id)" class="text-rose-400 p-1 hover:bg-rose-400/10 rounded">❌</button>
             </div>
@@ -151,15 +192,14 @@
       <div v-else class="text-center py-4 text-xs text-slate-500">لا توجد طلبات مسجلة اليوم حتى الآن.</div>
     </div>
 
-    <!-- Expenses Section -->
+    <!-- Expenses -->
     <div class="bg-dark-800 border border-dark-700 p-3.5 rounded-2xl">
       <div class="flex items-center justify-between mb-2.5">
         <h2 class="text-sm font-bold text-slate-200">💸 الخارج والمصروفات</h2>
-        <button v-if="shiftData?.day?.status === 'OPEN'" @click="showExpenseModal = true; resetExpenseForm();" class="text-xs bg-rose-500 hover:bg-rose-600 text-white font-bold px-3 py-1.5 rounded-lg transition shadow">
+        <button v-if="shiftData?.day?.status === 'OPEN'" @click="showExpenseModal = true; resetExpenseForm();" class="no-print text-xs bg-rose-500 hover:bg-rose-600 text-white font-bold px-3 py-1.5 rounded-lg transition shadow">
           + تسجيل خارج
         </button>
       </div>
-      <!-- 4 Compact Cards for Outgoing -->
       <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
         <div class="bg-dark-900/60 p-2.5 rounded-xl text-center border border-dark-700">
           <span class="text-[11px] text-rose-400 block font-bold">إجمالي الخارج</span>
@@ -179,7 +219,6 @@
         </div>
       </div>
 
-      <!-- Expenses List -->
       <div v-if="shiftData?.expenses?.length" class="space-y-2 max-h-64 overflow-y-auto pr-1">
         <div v-for="e in shiftData.expenses" :key="e.id" class="bg-dark-900 border border-dark-700/70 p-2.5 rounded-xl flex items-center justify-between text-xs">
           <div>
@@ -190,7 +229,7 @@
           </div>
           <div class="flex items-center gap-2">
             <span class="font-black text-rose-400">{{ formatNum(e.amount) }} <span class="text-[10px] text-slate-400">({{ e.source }})</span></span>
-            <div v-if="shiftData?.day?.status === 'OPEN'" class="flex items-center gap-1">
+            <div v-if="shiftData?.day?.status === 'OPEN'" class="no-print flex items-center gap-1">
               <button @click="editExpense(e)" class="text-amber-400 p-1 hover:bg-amber-400/10 rounded">✏️</button>
               <button @click="deleteExpense(e.id)" class="text-rose-400 p-1 hover:bg-rose-400/10 rounded">❌</button>
             </div>
@@ -200,8 +239,8 @@
       <div v-else class="text-center py-4 text-xs text-slate-500">لا توجد مصاريف مسجلة اليوم.</div>
     </div>
 
-    <!-- Treasury Quick Feed Button -->
-    <div v-if="shiftData?.day?.status === 'OPEN'" class="text-left">
+    <!-- Treasury Quick Feed -->
+    <div v-if="shiftData?.day?.status === 'OPEN'" class="no-print text-left">
       <button @click="showTreasuryModal = true" class="text-xs text-cyan-400 hover:text-cyan-300 font-bold bg-dark-800 border border-cyan-500/30 px-3 py-2 rounded-xl">
         🏦 + تغذية للعهدة في هذه الوردية
       </button>
@@ -225,14 +264,12 @@
         </div>
       </div>
 
-      <!-- Responsibility Banner -->
       <div class="bg-cyan-500/10 border border-cyan-500/30 p-3 rounded-xl flex items-center justify-between">
         <span class="text-xs font-bold text-slate-200">🛡️ إجمالي العهد والمسؤولية:</span>
         <span class="text-lg font-black text-cyan-400">{{ formatNum(shiftData?.balances?.total_responsibility) }} ج.م</span>
       </div>
 
-      <!-- Close / Reopen Actions -->
-      <div class="pt-2">
+      <div class="no-print pt-2">
         <button v-if="shiftData?.day?.status === 'OPEN'" @click="closeShift" class="w-full bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-black py-3 rounded-xl transition shadow-lg text-sm">
           🔒 إغلاق الوردية وتجميد الأرصدة
         </button>
@@ -241,15 +278,25 @@
         </button>
       </div>
     </div>
-
   </div>
 
-  <!-- ================= 2. REPORTS VIEW (EXECUTIVE BI) ================= -->
+  <!-- ================= 2. REPORTS VIEW (EXECUTIVE BI & PDF) ================= -->
   <div v-if="!loading && activeTab === 'reports'" class="space-y-4">
-    <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
+    
+    <!-- Range & Presets Filter (NO-PRINT) -->
+    <div class="no-print bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <span class="text-xs font-bold text-slate-300">📅 فترات سريعة:</span>
+        <div class="flex gap-1.5">
+          <button @click="setDatePreset('this_month')" class="text-[11px] bg-dark-900 border border-dark-700 hover:border-cyan-500 text-cyan-400 font-bold px-2.5 py-1 rounded-lg">هذا الشهر</button>
+          <button @click="setDatePreset('today')" class="text-[11px] bg-dark-900 border border-dark-700 hover:border-cyan-500 text-cyan-400 font-bold px-2.5 py-1 rounded-lg">اليوم</button>
+          <button @click="setDatePreset('last_month')" class="text-[11px] bg-dark-900 border border-dark-700 hover:border-cyan-500 text-cyan-400 font-bold px-2.5 py-1 rounded-lg">الشهر السابق</button>
+        </div>
+      </div>
+
       <div class="flex flex-col sm:flex-row gap-3">
         <div class="flex-1">
-          <label class="text-xs font-bold text-slate-400 block mb-1">📍 نطاق التقرير:</label>
+          <label class="text-xs font-bold text-slate-400 block mb-1">📍 نطاق الفروع:</label>
           <select v-model="reportScope" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-sm text-cyan-400 font-bold outline-none">
             <option value="all">🌐 الشركة مجمعة (كل الفروع)</option>
             <option v-for="r in regions" :key="r.id" :value="r.id">🏢 فرع {{ r.name }}</option>
@@ -257,23 +304,33 @@
         </div>
         <div class="flex gap-2 flex-1">
           <div class="flex-1">
-            <label class="text-xs font-bold text-slate-400 block mb-1">من:</label>
-            <input type="date" v-model="reportStart" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-slate-200 outline-none">
+            <label class="text-xs font-bold text-slate-400 block mb-1">من تاريخ (يوم 1):</label>
+            <input type="date" v-model="reportStart" @click="$event.target.showPicker && $event.target.showPicker()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-cyan-400 font-bold outline-none cursor-pointer">
           </div>
           <div class="flex-1">
-            <label class="text-xs font-bold text-slate-400 block mb-1">إلى:</label>
-            <input type="date" v-model="reportEnd" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-slate-200 outline-none">
+            <label class="text-xs font-bold text-slate-400 block mb-1">إلى تاريخ:</label>
+            <input type="date" v-model="reportEnd" @click="$event.target.showPicker && $event.target.showPicker()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-cyan-400 font-bold outline-none cursor-pointer">
           </div>
         </div>
       </div>
-      <button @click="loadReports" class="w-full bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-black py-2.5 rounded-xl text-xs transition">
-        تحديث التقرير 🔄
-      </button>
+      
+      <div class="flex gap-2">
+        <button @click="loadReports" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-black py-2.5 rounded-xl text-xs transition">
+          تحديث التقرير 🔄
+        </button>
+        <button @click="exportPDF" class="bg-dark-700 hover:bg-dark-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1 border border-dark-600 shadow">
+          <span>🖨️ تصدير PDF</span>
+        </button>
+      </div>
     </div>
 
-    <!-- Reports Data -->
+    <!-- Printable Header for Reports -->
+    <div class="print-header text-center mb-2">
+      <h2 class="text-lg font-bold">تقرير الفترة من {{ reportStart }} إلى {{ reportEnd }}</h2>
+    </div>
+
     <div v-if="reportData && !reportData.empty" class="space-y-4">
-      <!-- Revenue Summary -->
+      <!-- Revenue KPI Cards -->
       <div class="grid grid-cols-3 gap-2">
         <div class="bg-dark-800 border border-dark-700 p-3 rounded-xl text-center">
           <span class="text-[11px] text-slate-400 block">كاش الطلبات</span>
@@ -289,7 +346,7 @@
         </div>
       </div>
 
-      <!-- Salary Deductions Section (THE ACCOUNTANT MASTERPIECE) -->
+      <!-- Salary Deductions Pivot -->
       <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl">
         <h3 class="text-sm font-bold text-slate-200 mb-1">👨‍🔧 كشف تسوية الرواتب (المسحوبات التي تُخصم من المرتب)</h3>
         <p class="text-xs text-slate-400 mb-3">تشمل السلف والمصروفات الشخصية فقط الموزعة على الفروع.</p>
@@ -304,24 +361,99 @@
               </tr>
             </thead>
             <tbody class="divide-y divide-dark-700/50">
-              <tr v-for="row in reportData.salary_deductions" :key="row.employee" class="hover:bg-dark-900/40">
-                <td class="py-2.5 px-3 font-bold text-white">{{ row.employee }}</td>
+              <tr v-for="row in reportData.salary_deductions" :key="row.employee" class="hover:bg-dark-900/40 cursor-pointer" @click="filterEmp = row.employee">
+                <td class="py-2.5 px-3 font-bold text-white flex items-center gap-1.5">
+                  <span>{{ row.employee }}</span>
+                  <span class="no-print text-[10px] text-cyan-400 font-normal">🔍</span>
+                </td>
                 <td v-for="r in regions" :key="r.id" class="py-2.5 px-3 text-slate-300">{{ formatNum(row[r.name] || 0) }}</td>
                 <td class="py-2.5 px-3 font-black text-rose-400 text-sm">{{ formatNum(row.total) }} ج.م</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <div v-else class="text-center py-4 text-xs text-slate-500">لا توجد سلف أو استقطاعات رواتب مسجلة في هذه الفترة.</div>
       </div>
 
-      <!-- Operating Expenses (OPEX - Company Expenses) -->
+      <!-- Advanced Drill-down (No-Print Controls) -->
+      <div class="bg-dark-800 border border-cyan-500/30 p-4 rounded-2xl space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-bold text-cyan-400">🔍 فاحص حركات الموظفين والمصروفات التفصيلي</h3>
+          <span class="text-xs text-slate-400">عدد الحركات: {{ filteredExpenses.length }}</span>
+        </div>
+
+        <div class="no-print grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">فلتر الموظف:</label>
+            <select v-model="filterEmp" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white font-bold outline-none">
+              <option value="all">-- كل الموظفين --</option>
+              <option v-for="emp in meta.employees" :key="emp" :value="emp">{{ emp }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">فلتر نوع الصرف:</label>
+            <select v-model="filterType" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-3 py-2 text-xs text-white font-bold outline-none">
+              <option value="all">-- كل بنود الصرف --</option>
+              <option v-for="cat in meta.categories" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2 pt-1">
+          <div class="bg-dark-900 p-2.5 rounded-xl border border-dark-700 text-center">
+            <span class="text-[11px] text-slate-400 block font-medium">إجمالي المفلتر</span>
+            <span class="text-base font-black text-cyan-400">{{ formatNum(filteredTotal) }}</span>
+          </div>
+          <div class="bg-dark-900 p-2.5 rounded-xl border border-rose-500/30 text-center">
+            <span class="text-[11px] text-rose-400 block font-bold">يُخصم من الراتب (سلف)</span>
+            <span class="text-base font-black text-rose-400">{{ formatNum(filteredDeductible) }}</span>
+          </div>
+          <div class="bg-dark-900 p-2.5 rounded-xl border border-blue-500/30 text-center">
+            <span class="text-[11px] text-blue-400 block font-bold">مصاريف تشغيل (بنزين)</span>
+            <span class="text-base font-black text-blue-400">{{ formatNum(filteredOpex) }}</span>
+          </div>
+        </div>
+
+        <!-- Detailed Transaction Table -->
+        <div class="pt-2">
+          <h4 class="text-xs font-bold text-slate-300 mb-2">📝 سجل الحركات بالتاريخ والبيان:</h4>
+          <div v-if="filteredExpenses.length" class="overflow-x-auto max-h-80 overflow-y-auto border border-dark-700 rounded-xl">
+            <table class="w-full text-right text-xs">
+              <thead class="bg-dark-900 text-slate-400 sticky top-0 border-b border-dark-700">
+                <tr>
+                  <th class="py-2.5 px-3">التاريخ</th>
+                  <th class="py-2.5 px-3">الفرع</th>
+                  <th class="py-2.5 px-3">الموظف</th>
+                  <th class="py-2.5 px-3">نوع الصرف</th>
+                  <th class="py-2.5 px-3">المبلغ</th>
+                  <th class="py-2.5 px-3">المصدر</th>
+                  <th class="py-2.5 px-3">البيان / الملاحظات</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-dark-700/50 bg-dark-900/40">
+                <tr v-for="(ex, i) in filteredExpenses" :key="i" class="hover:bg-dark-800/60">
+                  <td class="py-2 px-3 font-bold text-cyan-400 whitespace-nowrap">{{ ex.date }}</td>
+                  <td class="py-2 px-3 text-slate-300 whitespace-nowrap">{{ ex.branch }}</td>
+                  <td class="py-2 px-3 font-bold text-white whitespace-nowrap">{{ ex.person }}</td>
+                  <td class="py-2 px-3 whitespace-nowrap">
+                    <span :class="ex.is_deductible ? 'text-rose-400 font-bold' : 'text-blue-300'">{{ ex.type }}</span>
+                  </td>
+                  <td class="py-2 px-3 font-black text-slate-100 whitespace-nowrap">{{ formatNum(ex.amount) }} ج.م</td>
+                  <td class="py-2 px-3 text-slate-400 whitespace-nowrap">{{ ex.source }}</td>
+                  <td class="py-2 px-3 text-slate-300 min-w-[140px]">{{ ex.notes || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-else class="text-center py-6 text-xs text-slate-500 bg-dark-900 rounded-xl">لا توجد حركات تطابق الفلاتر.</div>
+        </div>
+      </div>
+
+      <!-- Operating Expenses Macro -->
       <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl">
         <div class="flex items-center justify-between mb-2">
-          <h3 class="text-sm font-bold text-slate-200">⛽ مصاريف تشغيل الشركة (بنزين، مشتريات، خامات)</h3>
+          <h3 class="text-sm font-bold text-slate-200">⛽ مصاريف تشغيل الشركة (بنزين، مشتريات، سكن)</h3>
           <span class="text-xs font-black text-rose-400">الإجمالي: {{ formatNum(reportData.opex_total) }} ج.م</span>
         </div>
-        <p class="text-xs text-slate-400 mb-3">هذه مبالغ تتحملها الشركة بالكامل لمصلحة العمل وليست سلفاً على العمال.</p>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <div v-for="op in reportData.opex" :key="op.category" class="bg-dark-900 p-2.5 rounded-xl border border-dark-700 text-xs flex justify-between items-center">
             <span class="text-slate-300 font-bold">{{ op.category }}</span>
@@ -329,8 +461,8 @@
           </div>
         </div>
       </div>
+
     </div>
-    <div v-else class="text-center py-10 text-slate-500 text-xs">لا توجد بيانات مسجلة في الفترة المحددة.</div>
   </div>
 
   <!-- ================= 3. LEAVES VIEW ================= -->
@@ -340,12 +472,11 @@
         <h2 class="text-sm font-bold text-slate-200">🏖️ سجل إجازات الشركة</h2>
         <p class="text-xs text-slate-400">سجل موحد يظهر فيه جميع موظفي الشروق ومدينتي معاً.</p>
       </div>
-      <button @click="showLeaveModal = true" class="text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-2 rounded-xl transition">
+      <button @click="showLeaveModal = true" class="no-print text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-2 rounded-xl transition">
         + تسجيل إجازة
       </button>
     </div>
 
-    <!-- Leaves List -->
     <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl">
       <div v-if="leavesList.length" class="space-y-2">
         <div v-for="l in leavesList" :key="l.id" class="bg-dark-900 border border-dark-700 p-3 rounded-xl flex items-center justify-between text-xs">
@@ -355,7 +486,7 @@
               <span>📅 {{ l.date }}</span> | <span>📍 فرع: {{ l.branch }}</span> | <span>📝 {{ l.notes }}</span>
             </div>
           </div>
-          <button @click="deleteLeave(l.id)" class="text-rose-400 p-1.5 hover:bg-rose-400/10 rounded-lg">❌</button>
+          <button @click="deleteLeave(l.id)" class="no-print text-rose-400 p-1.5 hover:bg-rose-400/10 rounded-lg">❌</button>
         </div>
       </div>
       <div v-else class="text-center py-6 text-slate-500 text-xs">لم يتم تسجيل أي إجازات حتى الآن.</div>
@@ -364,7 +495,6 @@
 
   <!-- ================= 4. SETTINGS VIEW ================= -->
   <div v-if="!loading && activeTab === 'settings'" class="space-y-4">
-    <!-- Employees Management -->
     <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
       <h3 class="text-sm font-bold text-slate-200">👨‍🔧 إدارة الموظفين</h3>
       <div class="flex gap-2">
@@ -373,12 +503,11 @@
       </div>
       <div class="flex flex-wrap gap-2 pt-2">
         <span v-for="emp in meta.employees" :key="emp" class="bg-dark-900 border border-dark-700 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
-          {{ emp }} <button @click="removeEmployee(emp)" class="text-rose-400 hover:text-rose-300">×</button>
+          {{ emp }} <button @click="removeEmployee(emp)" class="text-rose-400 hover:text-rose-300 font-bold">×</button>
         </span>
       </div>
     </div>
 
-    <!-- Expense Categories Management -->
     <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
       <h3 class="text-sm font-bold text-slate-200">🏷️ بنود الخارج والمصروفات</h3>
       <div class="flex gap-2">
@@ -387,16 +516,15 @@
       </div>
       <div class="flex flex-wrap gap-2 pt-2">
         <span v-for="cat in meta.categories" :key="cat" class="bg-dark-900 border border-dark-700 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2">
-          {{ cat }} <button @click="removeCategory(cat)" class="text-rose-400 hover:text-rose-300">×</button>
+          {{ cat }} <button @click="removeCategory(cat)" class="text-rose-400 hover:text-rose-300 font-bold">×</button>
         </span>
       </div>
     </div>
 
-    <!-- Initial Balances Setter -->
     <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
       <h3 class="text-sm font-bold text-slate-200">🏦 ضبط أرصدة البداية لأي يوم</h3>
       <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-        <input type="date" v-model="initBalDate" class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-cyan-400 font-bold">
+        <input type="date" v-model="initBalDate" @click="$event.target.showPicker && $event.target.showPicker()" class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-cyan-400 font-bold cursor-pointer">
         <input type="number" v-model.number="initInside" placeholder="الداخل..." class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
         <input type="number" v-model.number="initCashTr" placeholder="عهدة كاش..." class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
         <input type="number" v-model.number="initInstaTr" placeholder="عهدة انستا..." class="bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
@@ -407,8 +535,8 @@
     </div>
   </div>
 
-  <!-- ================= BOTTOM NAVIGATION BAR (MOBILE ONLY) ================= -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-dark-800/95 backdrop-blur-md border-t border-dark-700 px-2 py-2 flex justify-around items-center z-50">
+  <!-- ================= BOTTOM NAVIGATION BAR (MOBILE) ================= -->
+  <nav class="no-print md:hidden fixed bottom-0 left-0 right-0 bg-dark-800/95 backdrop-blur-md border-t border-dark-700 px-2 py-2 flex justify-around items-center z-50">
     <button @click="activeTab = 'shift'" :class="activeTab === 'shift' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
       <span class="text-base">🚗</span> <span>الوردية</span>
     </button>
@@ -424,8 +552,8 @@
   </nav>
 
   <!-- ================= MODALS ================= -->
-  <!-- 1. Order Modal -->
-  <div v-if="showOrderModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+  <!-- Order Modal -->
+  <div v-if="showOrderModal" class="no-print fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl">
       <h3 class="text-sm font-bold text-white">{{ orderForm.id ? 'تعديل طلب' : 'إضافة طلب جديد' }}</h3>
       <div class="grid grid-cols-2 gap-2">
@@ -469,8 +597,8 @@
     </div>
   </div>
 
-  <!-- 2. Expense Modal -->
-  <div v-if="showExpenseModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+  <!-- Expense Modal -->
+  <div v-if="showExpenseModal" class="no-print fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl">
       <h3 class="text-sm font-bold text-white">{{ expenseForm.id ? 'تعديل خارج' : 'تسجيل خارج جديد' }}</h3>
       <div class="grid grid-cols-2 gap-2">
@@ -512,8 +640,8 @@
     </div>
   </div>
 
-  <!-- 3. Treasury Modal -->
-  <div v-if="showTreasuryModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+  <!-- Treasury Modal -->
+  <div v-if="showTreasuryModal" class="no-print fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl">
       <h3 class="text-sm font-bold text-white">➕ تغذية رصيد العهدة</h3>
       <div>
@@ -538,8 +666,8 @@
     </div>
   </div>
 
-  <!-- 4. Leave Modal -->
-  <div v-if="showLeaveModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+  <!-- Leave Modal -->
+  <div v-if="showLeaveModal" class="no-print fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
     <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl">
       <h3 class="text-sm font-bold text-white">🏖️ تسجيل إجازة موظف</h3>
       <div>
@@ -550,7 +678,7 @@
       </div>
       <div>
         <label class="text-[11px] text-slate-400 block mb-1">تاريخ الإجازة:</label>
-        <input type="date" v-model="leaveForm.date" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        <input type="date" v-model="leaveForm.date" @click="$event.target.showPicker && $event.target.showPicker()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white cursor-pointer">
       </div>
       <div>
         <label class="text-[11px] text-slate-400 block mb-1">السبب / الملاحظات:</label>
@@ -579,11 +707,18 @@
       const shiftData = ref(null);
       const meta = ref({ employees: [], categories: [] });
 
-      // Reports State
+      // Reports Setup (Starts strictly on 1st of month)
+      const now = new Date();
+      const firstDayOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      
       const reportScope = ref('all');
-      const reportStart = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
-      const reportEnd = ref(new Date().toISOString().split('T')[0]);
+      const reportStart = ref(firstDayOfMonth);
+      const reportEnd = ref(now.toISOString().split('T')[0]);
       const reportData = ref(null);
+
+      // Advanced Filters for Reports
+      const filterEmp = ref('all');
+      const filterType = ref('all');
 
       // Leaves State
       const leavesList = ref([]);
@@ -606,7 +741,7 @@
         "3:00 - 4:00", "3:00 - 4:30", "4:00 - 5:00", "5:00 - 6:00", "5:00 - 6:30",
         "6:00 - 7:00", "6:30 - 8:00", "7:00 - 8:00", "8:00 - 9:00", "8:00 - 9:30",
         "9:00 - 10:00", "9:30 - 11:00", "10:00 - 11:00", "10:00 - 11:30", "11:00 - 12:00",
-        "11:30 - 1:00", "12:00 - 1:30", "1:00 - 2:00", "1:30 - 3:00", "2:00 - 3:00"
+        "11:30 - 1:00", "12:00 - 1:00",  "12:00 - 1:30" , "1:00 - 2:00", "1:30 - 3:00", "2:00 - 3:00"
       ];
 
       const orderForm = ref({ id: null, time: timeSlots[0], customer: '', is_sub: false, price: null, payment: 'None', notes: '' });
@@ -625,6 +760,28 @@
         });
       });
 
+      // Filtered expenses for drill-down
+      const filteredExpenses = computed(() => {
+        if (!reportData.value?.raw_expenses) return [];
+        return reportData.value.raw_expenses.filter(ex => {
+          const matchEmp = filterEmp.value === 'all' || ex.person === filterEmp.value;
+          const matchType = filterType.value === 'all' || ex.type === filterType.value;
+          return matchEmp && matchType;
+        });
+      });
+
+      const filteredTotal = computed(() => {
+        return filteredExpenses.value.reduce((acc, curr) => acc + curr.amount, 0);
+      });
+
+      const filteredDeductible = computed(() => {
+        return filteredExpenses.value.filter(e => e.is_deductible).reduce((acc, curr) => acc + curr.amount, 0);
+      });
+
+      const filteredOpex = computed(() => {
+        return filteredExpenses.value.filter(e => !e.is_deductible).reduce((acc, curr) => acc + curr.amount, 0);
+      });
+
       const tabClass = (tab) => {
         return activeTab.value === tab 
           ? 'bg-cyan-500 text-dark-900 shadow-md' 
@@ -634,6 +791,29 @@
       const formatNum = (n) => {
         if (n === undefined || n === null) return '0';
         return Math.round(n).toLocaleString('en-US');
+      };
+
+      const setDatePreset = (preset) => {
+        const d = new Date();
+        if (preset === 'this_month') {
+          reportStart.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+          reportEnd.value = d.toISOString().split('T')[0];
+        } else if (preset === 'today') {
+          const todayStr = d.toISOString().split('T')[0];
+          reportStart.value = todayStr;
+          reportEnd.value = todayStr;
+        } else if (preset === 'last_month') {
+          const firstDayLastMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+          const lastDayLastMonth = new Date(d.getFullYear(), d.getMonth(), 0);
+          reportStart.value = firstDayLastMonth.toISOString().split('T')[0];
+          reportEnd.value = lastDayLastMonth.toISOString().split('T')[0];
+        }
+        loadReports();
+      };
+
+      // Export Native Clean PDF
+      const exportPDF = () => {
+        window.print();
       };
 
       // API Calls
@@ -677,7 +857,7 @@
         loadShift();
       };
 
-      // Orders
+      // Orders Actions
       const resetOrderForm = () => {
         orderForm.value = { id: null, time: timeSlots[0], customer: '', is_sub: false, price: null, payment: 'None', notes: '' };
       };
@@ -713,7 +893,7 @@
         }
       };
 
-      // Expenses
+      // Expenses Actions
       const resetExpenseForm = () => {
         expenseForm.value = { id: null, person: meta.value.employees[0] || 'عام', type: meta.value.categories[0] || 'عام', amount: null, source: 'الداخل', notes: '' };
       };
@@ -858,10 +1038,11 @@
       return {
         activeTab, loading, regions, selectedRegionId, currentRegion, shiftDate, shiftData,
         sortedOrders, timeSlots, meta, reportScope, reportStart, reportEnd, reportData,
+        filterEmp, filterType, filteredExpenses, filteredTotal, filteredDeductible, filteredOpex,
         leavesList, newEmpName, newCatName, initBalDate, initInside, initCashTr, initInstaTr,
         showOrderModal, showExpenseModal, showTreasuryModal, showLeaveModal,
         orderForm, expenseForm, treasuryForm, leaveForm,
-        tabClass, formatNum, loadShift, onRegionChange,
+        tabClass, formatNum, setDatePreset, exportPDF, loadShift, onRegionChange,
         resetOrderForm, editOrder, saveOrder, deleteOrder,
         resetExpenseForm, editExpense, saveExpense, deleteExpense,
         closeShift, reopenShift, saveTreasury, loadReports, saveLeave, deleteLeave,
