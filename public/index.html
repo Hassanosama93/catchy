@@ -20,17 +20,24 @@
       body {
         background: #ffffff !important;
         color: #000000 !important;
-        padding-bottom: 0 !important;
+        padding-bottom: 40px !important;
       }
-      /* إخفاء كل أدوات التحكم والأزرار والقوائم عند تصدير الـ PDF */
+      /* إخفاء أدوات التحكم عند الطباعة */
       header, nav, button, select, input, .no-print {
         display: none !important;
       }
-      /* إلغاء السكرول تماماً وإظهار كل الطلبات والمصاريف بالكامل */
+      /* إلغاء السكرول وتمديد كل القوائم بالكامل مع مسافة أمان سفلية */
       .overflow-y-auto, .overflow-x-auto, [class*="max-h-"] {
         max-height: none !important;
         overflow: visible !important;
         height: auto !important;
+        padding-bottom: 25px !important;
+        margin-bottom: 15px !important;
+      }
+      /* منع قص أي صف أو كارت في المنتصف عبر الصفحات */
+      tr, .space-y-2 > div, [class*="bg-dark-"] {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
       }
       /* تحويل الكروت لورق رسمي واضح للطباعة */
       div[class*="bg-dark-"], div[class*="border-dark-"] {
