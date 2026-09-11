@@ -221,11 +221,27 @@
       <div v-else class="text-center py-4 text-xs text-slate-500">لا توجد مصاريف مسجلة اليوم.</div>
     </div>
 
-    <!-- Treasury Quick Feed -->
-    <div v-if="shiftData?.day?.status === 'OPEN'" class="no-print text-left">
-      <button @click="openTreasuryModal()" class="text-xs text-cyan-400 hover:text-cyan-300 font-bold bg-dark-800 border border-cyan-500/30 px-3 py-2 rounded-xl">
-        🏦 + تغذية للعهدة في هذه الوردية
-      </button>
+    <!-- Treasury Quick Feed & Movements List with Delete Button -->
+    <div class="space-y-2">
+      <div v-if="shiftData?.day?.status === 'OPEN'" class="no-print text-left">
+        <button @click="openTreasuryModal()" class="text-xs text-cyan-400 hover:text-cyan-300 font-bold bg-dark-800 border border-cyan-500/30 px-3 py-2 rounded-xl shadow">
+          🏦 + تغذية للعهدة في هذه الوردية
+        </button>
+      </div>
+
+      <!-- قائمة تغذيات العهدة المسجلة اليوم مع زر الحذف الصريح -->
+      <div v-if="shiftData?.treasury_movements?.length" class="bg-dark-800 border border-dark-700 p-3 rounded-xl space-y-1.5">
+        <span class="text-[11px] text-slate-400 font-bold block">🏦 حركات تغذية العهدة المسجلة اليوم:</span>
+        <div v-for="m in shiftData.treasury_movements" :key="m.id" class="bg-dark-900 border border-dark-700/60 p-2.5 rounded-xl flex items-center justify-between text-xs">
+          <div>
+            <span class="font-bold text-white">{{ m.type }}: +{{ formatNum(m.amount) }} ج.م</span>
+            <span class="text-[11px] text-slate-400 mr-1.5">({{ m.desc }})</span>
+          </div>
+          <button v-if="shiftData?.day?.status === 'OPEN'" @click="deleteTreasuryMovement(m.id)" class="text-rose-400 hover:text-rose-300 p-1 font-bold">
+            ❌ حذف
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Ending Balances & Responsibility -->
@@ -778,7 +794,7 @@
         "3:00 - 4:00", "3:00 - 4:30", "4:00 - 5:00", "5:00 - 6:00", "5:00 - 6:30",
         "6:00 - 7:00", "6:30 - 8:00", "7:00 - 8:00", "8:00 - 9:00", "8:00 - 9:30",
         "9:00 - 10:00", "9:30 - 11:00", "10:00 - 11:00", "10:00 - 11:30", "11:00 - 12:00",
-        "11:30 - 1:00", "12:00 - 1:00" , "12:00 - 1:30", "1:00 - 2:00", "1:30 - 3:00", "2:00 - 3:00"
+        "11:30 - 1:00", "12:00 - 1:30", "1:00 - 2:00", "1:30 - 3:00", "2:00 - 3:00"
       ];
 
       const orderForm = ref({ id: null, time: timeSlots[0], customer: '', is_sub: false, price: null, payment: 'None', notes: '' });
@@ -964,6 +980,13 @@
         }
       };
 
+      const deleteTreasuryMovement = async (id) => {
+        if (confirm('هل أنت متأكد من حذف حركة تغذية العهدة هذه؟')) {
+          await fetch(`/api/treasury-movements/${id}`, { method: 'DELETE' });
+          loadShift();
+        }
+      };
+
       const closeShift = async () => {
         if (confirm('هل أنت متأكد من إغلاق الوردية وتجميد الأرصدة؟')) {
           await fetch(`/api/shift/${shiftData.value.day.id}/close`, { method: 'POST' });
@@ -1076,7 +1099,7 @@
         tabClass, formatNum, setDatePreset, exportPDF, loadShift, onRegionChange,
         openOrderModal, openExpenseModal, openTreasuryModal, openLeaveModal, closeAllModals, switchTab,
         editOrder, saveOrder, deleteOrder,
-        editExpense, saveExpense, deleteExpense,
+        editExpense, saveExpense, deleteExpense, deleteTreasuryMovement,
         closeShift, reopenShift, saveTreasury, loadReports, saveLeave, deleteLeave,
         addEmployee, removeEmployee, addCategory, removeCategory, saveInitialBalances
       };
