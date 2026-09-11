@@ -15,50 +15,16 @@
     body { -ms-overflow-style: none; scrollbar-width: none; }
     input[type="date"]::-webkit-calendar-picker-indicator { cursor: pointer; filter: invert(0.8); }
 
-    /* ================= STYLES FOR CLEAN PDF EXPORT ================= */
+    /* ================= PRINT PDF STYLES ================= */
     @media print {
-      body {
-        background: #ffffff !important;
-        color: #000000 !important;
-        padding-bottom: 40px !important;
-      }
-      /* إخفاء أدوات التحكم عند الطباعة */
-      header, nav, button, select, input, .no-print {
-        display: none !important;
-      }
-      /* إلغاء السكرول وتمديد كل القوائم بالكامل مع مسافة أمان سفلية */
-      .overflow-y-auto, .overflow-x-auto, [class*="max-h-"] {
-        max-height: none !important;
-        overflow: visible !important;
-        height: auto !important;
-        padding-bottom: 25px !important;
-        margin-bottom: 15px !important;
-      }
-      /* منع قص أي صف أو كارت في المنتصف عبر الصفحات */
-      tr, .space-y-2 > div, [class*="bg-dark-"] {
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
-      }
-      /* تحويل الكروت لورق رسمي واضح للطباعة */
-      div[class*="bg-dark-"], div[class*="border-dark-"] {
-        background: #ffffff !important;
-        color: #000000 !important;
-        border: 1px solid #94a3b8 !important;
-        box-shadow: none !important;
-      }
-      span, h1, h2, h3, h4, th, td, p, div {
-        color: #000000 !important;
-      }
-      .print-header {
-        display: block !important;
-        margin-bottom: 20px;
-        border-bottom: 2px solid #000;
-        padding-bottom: 12px;
-      }
-      .text-cyan-400, .text-emerald-400, .text-rose-400 {
-        color: #000000 !important;
-        font-weight: 900 !important;
-      }
+      body { background: #ffffff !important; color: #000000 !important; padding-bottom: 40px !important; }
+      header, nav, button, select, input, .no-print { display: none !important; }
+      .overflow-y-auto, .overflow-x-auto, [class*="max-h-"] { max-height: none !important; overflow: visible !important; height: auto !important; padding-bottom: 25px !important; margin-bottom: 15px !important; }
+      tr, .space-y-2 > div, [class*="bg-dark-"] { page-break-inside: avoid !important; break-inside: avoid !important; }
+      div[class*="bg-dark-"], div[class*="border-dark-"] { background: #ffffff !important; color: #000000 !important; border: 1px solid #94a3b8 !important; box-shadow: none !important; }
+      span, h1, h2, h3, h4, th, td, p, div { color: #000000 !important; }
+      .print-header { display: block !important; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 12px; }
+      .text-cyan-400, .text-emerald-400, .text-rose-400 { color: #000000 !important; font-weight: 900 !important; }
     }
     .print-header { display: none; }
   </style>
@@ -80,7 +46,7 @@
 
 <div id="app" class="max-w-5xl mx-auto px-3 sm:px-6 py-4">
 
-  <!-- ================= PRINT ONLY OFFICIAL HEADER ================= -->
+  <!-- PRINT HEADER -->
   <div class="print-header text-center">
     <h1 class="text-2xl font-black text-black">شركة كاتشي</h1>
     <p class="text-sm font-bold text-black mt-1">
@@ -90,7 +56,7 @@
     <p class="text-[11px] text-slate-700 mt-0.5">تاريخ ووقت الاستخراج: {{ new Date().toLocaleString('ar-EG') }}</p>
   </div>
 
-  <!-- ================= TOP HEADER (SCREEN ONLY) ================= -->
+  <!-- TOP HEADER -->
   <header class="no-print flex items-center justify-between bg-dark-800 border border-dark-700 px-4 py-3 rounded-2xl mb-4 shadow-lg">
     <div class="flex items-center gap-3">
       <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 font-black text-xl">
@@ -109,18 +75,18 @@
     </select>
   </header>
 
-  <!-- ================= NAVIGATION TABS (SCREEN ONLY) ================= -->
+  <!-- DESKTOP TABS -->
   <div class="no-print hidden md:flex gap-2 mb-6 bg-dark-800 p-1.5 rounded-xl border border-dark-700">
-    <button @click="activeTab = 'shift'" :class="tabClass('shift')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+    <button @click="switchTab('shift')" :class="tabClass('shift')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
       🚗 الوردية (Shift)
     </button>
-    <button @click="activeTab = 'reports'" :class="tabClass('reports')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+    <button @click="switchTab('reports')" :class="tabClass('reports')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
       📊 التقارير
     </button>
-    <button @click="activeTab = 'leaves'" :class="tabClass('leaves')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+    <button @click="switchTab('leaves')" :class="tabClass('leaves')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
       🏖️ الإجازات
     </button>
-    <button @click="activeTab = 'settings'" :class="tabClass('settings')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
+    <button @click="switchTab('settings')" :class="tabClass('settings')" class="flex-1 py-2.5 rounded-lg text-sm font-bold transition flex items-center justify-center gap-2">
       ⚙️ الضبط
     </button>
   </div>
@@ -137,10 +103,9 @@
         <input type="date" v-model="shiftDate" @change="loadShift" @click="$event.target.showPicker && $event.target.showPicker()" class="bg-dark-900 border border-dark-700 rounded-lg px-2.5 py-1 text-sm text-cyan-400 font-bold outline-none cursor-pointer">
       </div>
       
-      <!-- PDF Button for Shift -->
       <div class="flex items-center gap-2">
         <button @click="exportPDF" class="no-print text-xs bg-dark-700 hover:bg-dark-600 text-slate-200 font-bold px-3 py-1.5 rounded-xl border border-dark-600 flex items-center gap-1.5 shadow">
-          <span>📄 تصدير PDF / طباعة</span>
+          <span>📄 تصدير PDF</span>
         </button>
         <span :class="shiftData?.day?.status === 'CLOSED' ? 'bg-rose-500/10 text-rose-400 border-rose-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'" class="text-xs font-bold px-3 py-1 rounded-full border">
           {{ shiftData?.day?.status === 'CLOSED' ? '🔒 مغلقة ومجمدة' : '🟢 مفتوحة' }}
@@ -168,7 +133,7 @@
     <div class="bg-dark-800 border border-dark-700 p-3.5 rounded-2xl">
       <div class="flex items-center justify-between mb-2.5">
         <h2 class="text-sm font-bold text-slate-200">📋 الطلبات وإيراد اليوم</h2>
-        <button v-if="shiftData?.day?.status === 'OPEN'" @click="showOrderModal = true; resetOrderForm();" class="no-print text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-1.5 rounded-lg transition shadow">
+        <button v-if="shiftData?.day?.status === 'OPEN'" @click="openOrderModal()" class="no-print text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-1.5 rounded-lg transition shadow">
           + أوردر جديد
         </button>
       </div>
@@ -213,7 +178,7 @@
     <div class="bg-dark-800 border border-dark-700 p-3.5 rounded-2xl">
       <div class="flex items-center justify-between mb-2.5">
         <h2 class="text-sm font-bold text-slate-200">💸 الخارج والمصروفات</h2>
-        <button v-if="shiftData?.day?.status === 'OPEN'" @click="showExpenseModal = true; resetExpenseForm();" class="no-print text-xs bg-rose-500 hover:bg-rose-600 text-white font-bold px-3 py-1.5 rounded-lg transition shadow">
+        <button v-if="shiftData?.day?.status === 'OPEN'" @click="openExpenseModal()" class="no-print text-xs bg-rose-500 hover:bg-rose-600 text-white font-bold px-3 py-1.5 rounded-lg transition shadow">
           + تسجيل خارج
         </button>
       </div>
@@ -258,7 +223,7 @@
 
     <!-- Treasury Quick Feed -->
     <div v-if="shiftData?.day?.status === 'OPEN'" class="no-print text-left">
-      <button @click="showTreasuryModal = true" class="text-xs text-cyan-400 hover:text-cyan-300 font-bold bg-dark-800 border border-cyan-500/30 px-3 py-2 rounded-xl">
+      <button @click="openTreasuryModal()" class="text-xs text-cyan-400 hover:text-cyan-300 font-bold bg-dark-800 border border-cyan-500/30 px-3 py-2 rounded-xl">
         🏦 + تغذية للعهدة في هذه الوردية
       </button>
     </div>
@@ -297,10 +262,8 @@
     </div>
   </div>
 
-  <!-- ================= 2. REPORTS VIEW (EXECUTIVE BI & PDF) ================= -->
+  <!-- ================= 2. REPORTS VIEW ================= -->
   <div v-if="!loading && activeTab === 'reports'" class="space-y-4">
-    
-    <!-- Range & Presets Filter (NO-PRINT) -->
     <div class="no-print bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
       <div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-xs font-bold text-slate-300">📅 فترات سريعة:</span>
@@ -341,13 +304,11 @@
       </div>
     </div>
 
-    <!-- Printable Header for Reports -->
     <div class="print-header text-center mb-2">
       <h2 class="text-lg font-bold">تقرير الفترة من {{ reportStart }} إلى {{ reportEnd }}</h2>
     </div>
 
     <div v-if="reportData && !reportData.empty" class="space-y-4">
-      <!-- Revenue KPI Cards -->
       <div class="grid grid-cols-3 gap-2">
         <div class="bg-dark-800 border border-dark-700 p-3 rounded-xl text-center">
           <span class="text-[11px] text-slate-400 block">كاش الطلبات</span>
@@ -391,7 +352,7 @@
         </div>
       </div>
 
-      <!-- Advanced Drill-down (No-Print Controls) -->
+      <!-- Advanced Drill-down -->
       <div class="bg-dark-800 border border-cyan-500/30 p-4 rounded-2xl space-y-3">
         <div class="flex items-center justify-between">
           <h3 class="text-sm font-bold text-cyan-400">🔍 فاحص حركات الموظفين والمصروفات التفصيلي</h3>
@@ -430,7 +391,6 @@
           </div>
         </div>
 
-        <!-- Detailed Transaction Table -->
         <div class="pt-2">
           <h4 class="text-xs font-bold text-slate-300 mb-2">📝 سجل الحركات بالتاريخ والبيان:</h4>
           <div v-if="filteredExpenses.length" class="overflow-x-auto max-h-80 overflow-y-auto border border-dark-700 rounded-xl">
@@ -478,7 +438,6 @@
           </div>
         </div>
       </div>
-
     </div>
   </div>
 
@@ -489,7 +448,7 @@
         <h2 class="text-sm font-bold text-slate-200">🏖️ سجل إجازات الشركة</h2>
         <p class="text-xs text-slate-400">سجل موحد يظهر فيه جميع موظفي الشروق ومدينتي معاً.</p>
       </div>
-      <button @click="showLeaveModal = true" class="no-print text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-2 rounded-xl transition">
+      <button @click="openLeaveModal()" class="no-print text-xs bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold px-3 py-2 rounded-xl transition">
         + تسجيل إجازة
       </button>
     </div>
@@ -538,6 +497,7 @@
       </div>
     </div>
 
+    <!-- Initial Balances Setter with Explicit Labels -->
     <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
       <div>
         <h3 class="text-sm font-bold text-slate-200">🏦 ضبط أرصدة البداية لأي يوم</h3>
@@ -567,162 +527,172 @@
         حفظ وتحديث أرصدة البداية 💾
       </button>
     </div>
+  </div>
 
-  <!-- ================= BOTTOM NAVIGATION BAR (MOBILE) ================= -->
-  <nav class="no-print md:hidden fixed bottom-0 left-0 right-0 bg-dark-800/95 backdrop-blur-md border-t border-dark-700 px-2 py-2 flex justify-around items-center z-50">
-    <button @click="activeTab = 'shift'" :class="activeTab === 'shift' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
+  <!-- BOTTOM NAVIGATION BAR (MOBILE) -->
+  <nav class="no-print md:hidden fixed bottom-0 left-0 right-0 bg-dark-800/95 backdrop-blur-md border-t border-dark-700 px-2 py-2 flex justify-around items-center z-40">
+    <button @click="switchTab('shift')" :class="activeTab === 'shift' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
       <span class="text-base">🚗</span> <span>الوردية</span>
     </button>
-    <button @click="activeTab = 'reports'" :class="activeTab === 'reports' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
+    <button @click="switchTab('reports')" :class="activeTab === 'reports' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
       <span class="text-base">📊</span> <span>التقارير</span>
     </button>
-    <button @click="activeTab = 'leaves'" :class="activeTab === 'leaves' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
+    <button @click="switchTab('leaves')" :class="activeTab === 'leaves' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
       <span class="text-base">🏖️</span> <span>الإجازات</span>
     </button>
-    <button @click="activeTab = 'settings'" :class="activeTab === 'settings' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
+    <button @click="switchTab('settings')" :class="activeTab === 'settings' ? 'text-cyan-400 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-1 text-[11px]">
       <span class="text-base">⚙️</span> <span>الضبط</span>
     </button>
   </nav>
 
-  <!-- ================= MODALS ================= -->
-  <!-- Order Modal -->
-  <div v-if="showOrderModal" class="no-print fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl">
-      <h3 class="text-sm font-bold text-white">{{ orderForm.id ? 'تعديل طلب' : 'إضافة طلب جديد' }}</h3>
-      <div class="grid grid-cols-2 gap-2">
-        <div>
-          <label class="text-[11px] text-slate-400 block mb-1">الوقت:</label>
-          <select v-model="orderForm.time" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
-            <option v-for="t in timeSlots" :key="t" :value="t">{{ t }}</option>
-          </select>
+  <!-- ================= TELEPORTED BULLETPROOF MODALS ================= -->
+  
+  <!-- 1. Order Modal -->
+  <teleport to="body">
+    <div v-if="showOrderModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
+      <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl my-auto">
+        <h3 class="text-sm font-bold text-white">{{ orderForm.id ? 'تعديل طلب' : 'إضافة طلب جديد' }}</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">الوقت:</label>
+            <select v-model="orderForm.time" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+              <option v-for="t in timeSlots" :key="t" :value="t">{{ t }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">اسم العميل:</label>
+            <input v-model="orderForm.customer" placeholder="اسم العميل..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+          </div>
+        </div>
+        <div class="flex items-center gap-2 py-1">
+          <input type="checkbox" v-model="orderForm.is_sub" id="sub_check" class="rounded bg-dark-900 text-cyan-500">
+          <label for="sub_check" class="text-xs text-slate-300 font-bold">☑️ اشتراك</label>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">السعر (ج.م):</label>
+            <input type="number" v-model.number="orderForm.price" placeholder="اكتب السعر..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">طريقة الدفع:</label>
+            <select v-model="orderForm.payment" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+              <option value="None">None</option>
+              <option value="Cash">Cash</option>
+              <option value="Insta">Insta</option>
+            </select>
+          </div>
         </div>
         <div>
-          <label class="text-[11px] text-slate-400 block mb-1">اسم العميل:</label>
-          <input v-model="orderForm.customer" placeholder="اسم العميل..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+          <label class="text-[11px] text-slate-400 block mb-1">ملاحظات:</label>
+          <input v-model="orderForm.notes" placeholder="ملاحظات..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
         </div>
-      </div>
-      <div class="flex items-center gap-2 py-1">
-        <input type="checkbox" v-model="orderForm.is_sub" id="sub_check" class="rounded bg-dark-900 text-cyan-500">
-        <label for="sub_check" class="text-xs text-slate-300 font-bold">☑️ اشتراك</label>
-      </div>
-      <div class="grid grid-cols-2 gap-2">
-        <div>
-          <label class="text-[11px] text-slate-400 block mb-1">السعر (ج.م):</label>
-          <input type="number" v-model.number="orderForm.price" placeholder="اكتب السعر..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        <div class="flex gap-2 pt-2">
+          <button @click="saveOrder" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2 rounded-xl text-xs">حفظ</button>
+          <button @click="closeAllModals()" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
         </div>
-        <div>
-          <label class="text-[11px] text-slate-400 block mb-1">طريقة الدفع:</label>
-          <select v-model="orderForm.payment" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
-            <option value="None">None</option>
-            <option value="Cash">Cash</option>
-            <option value="Insta">Insta</option>
-          </select>
-        </div>
-      </div>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">ملاحظات:</label>
-        <input v-model="orderForm.notes" placeholder="ملاحظات..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
-      </div>
-      <div class="flex gap-2 pt-2">
-        <button @click="saveOrder" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2 rounded-xl text-xs">حفظ</button>
-        <button @click="showOrderModal = false" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
       </div>
     </div>
-  </div>
+  </teleport>
 
-  <!-- Expense Modal -->
-  <div v-if="showExpenseModal" class="no-print fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl">
-      <h3 class="text-sm font-bold text-white">{{ expenseForm.id ? 'تعديل خارج' : 'تسجيل خارج جديد' }}</h3>
-      <div class="grid grid-cols-2 gap-2">
-        <div>
-          <label class="text-[11px] text-slate-400 block mb-1">الموظف:</label>
-          <select v-model="expenseForm.person" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
-            <option v-for="emp in meta.employees" :key="emp" :value="emp">{{ emp }}</option>
-          </select>
+  <!-- 2. Expense Modal -->
+  <teleport to="body">
+    <div v-if="showExpenseModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
+      <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl my-auto">
+        <h3 class="text-sm font-bold text-white">{{ expenseForm.id ? 'تعديل خارج' : 'تسجيل خارج جديد' }}</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">الموظف:</label>
+            <select v-model="expenseForm.person" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+              <option v-for="emp in meta.employees" :key="emp" :value="emp">{{ emp }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">نوع الخارج:</label>
+            <select v-model="expenseForm.type" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+              <option v-for="cat in meta.categories" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">المبلغ (ج.م):</label>
+            <input type="number" v-model.number="expenseForm.amount" placeholder="اكتب المبلغ..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-400 block mb-1">يُخصم من:</label>
+            <select v-model="expenseForm.source" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+              <option value="الداخل">الداخل</option>
+              <option value="عهدة Cash">عهدة Cash</option>
+              <option value="عهدة Insta">عهدة Insta</option>
+            </select>
+          </div>
         </div>
         <div>
-          <label class="text-[11px] text-slate-400 block mb-1">نوع الخارج:</label>
-          <select v-model="expenseForm.type" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
-            <option v-for="cat in meta.categories" :key="cat" :value="cat">{{ cat }}</option>
-          </select>
+          <label class="text-[11px] text-slate-400 block mb-1">تفاصيل / ملاحظات:</label>
+          <input v-model="expenseForm.notes" placeholder="بيان المصروف..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button @click="saveExpense" class="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 rounded-xl text-xs">حفظ</button>
+          <button @click="closeAllModals()" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-2">
+    </div>
+  </teleport>
+
+  <!-- 3. Treasury Modal -->
+  <teleport to="body">
+    <div v-if="showTreasuryModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
+      <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl my-auto">
+        <h3 class="text-sm font-bold text-white">➕ تغذية رصيد العهدة</h3>
         <div>
-          <label class="text-[11px] text-slate-400 block mb-1">المبلغ (ج.م):</label>
-          <input type="number" v-model.number="expenseForm.amount" placeholder="اكتب المبلغ..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
-        </div>
-        <div>
-          <label class="text-[11px] text-slate-400 block mb-1">يُخصم من:</label>
-          <select v-model="expenseForm.source" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
-            <option value="الداخل">الداخل</option>
+          <label class="text-[11px] text-slate-400 block mb-1">نوع العهدة:</label>
+          <select v-model="treasuryForm.type" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
             <option value="عهدة Cash">عهدة Cash</option>
             <option value="عهدة Insta">عهدة Insta</option>
           </select>
         </div>
-      </div>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">تفاصيل / ملاحظات:</label>
-        <input v-model="expenseForm.notes" placeholder="بيان المصروف..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
-      </div>
-      <div class="flex gap-2 pt-2">
-        <button @click="saveExpense" class="flex-1 bg-rose-500 hover:bg-rose-600 text-white font-bold py-2 rounded-xl text-xs">حفظ</button>
-        <button @click="showExpenseModal = false" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">المبلغ المضاف:</label>
+          <input type="number" v-model.number="treasuryForm.amount" placeholder="المبلغ..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">البيان:</label>
+          <input v-model="treasuryForm.desc" placeholder="تغذية عهدة..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button @click="saveTreasury" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2 rounded-xl text-xs">إضافة</button>
+          <button @click="closeAllModals()" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
+        </div>
       </div>
     </div>
-  </div>
+  </teleport>
 
-  <!-- Treasury Modal -->
-  <div v-if="showTreasuryModal" class="no-print fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl">
-      <h3 class="text-sm font-bold text-white">➕ تغذية رصيد العهدة</h3>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">نوع العهدة:</label>
-        <select v-model="treasuryForm.type" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
-          <option value="عهدة Cash">عهدة Cash</option>
-          <option value="عهدة Insta">عهدة Insta</option>
-        </select>
-      </div>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">المبلغ المضاف:</label>
-        <input type="number" v-model.number="treasuryForm.amount" placeholder="المبلغ..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
-      </div>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">البيان:</label>
-        <input v-model="treasuryForm.desc" placeholder="تغذية عهدة..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
-      </div>
-      <div class="flex gap-2 pt-2">
-        <button @click="saveTreasury" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2 rounded-xl text-xs">إضافة</button>
-        <button @click="showTreasuryModal = false" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Leave Modal -->
-  <div v-if="showLeaveModal" class="no-print fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-    <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl">
-      <h3 class="text-sm font-bold text-white">🏖️ تسجيل إجازة موظف</h3>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">الموظف:</label>
-        <select v-model="leaveForm.emp" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
-          <option v-for="emp in meta.employees" :key="emp" :value="emp">{{ emp }}</option>
-        </select>
-      </div>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">تاريخ الإجازة:</label>
-        <input type="date" v-model="leaveForm.date" @click="$event.target.showPicker && $event.target.showPicker()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white cursor-pointer">
-      </div>
-      <div>
-        <label class="text-[11px] text-slate-400 block mb-1">السبب / الملاحظات:</label>
-        <input v-model="leaveForm.notes" placeholder="أسبوعية، عارضة..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
-      </div>
-      <div class="flex gap-2 pt-2">
-        <button @click="saveLeave" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2 rounded-xl text-xs">تسجيل</button>
-        <button @click="showLeaveModal = false" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
+  <!-- 4. Leave Modal -->
+  <teleport to="body">
+    <div v-if="showLeaveModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
+      <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl my-auto">
+        <h3 class="text-sm font-bold text-white">🏖️ تسجيل إجازة موظف</h3>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">الموظف:</label>
+          <select v-model="leaveForm.emp" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2 py-2 text-xs text-white">
+            <option v-for="emp in meta.employees" :key="emp" :value="emp">{{ emp }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">تاريخ الإجازة:</label>
+          <input type="date" v-model="leaveForm.date" @click="$event.target.showPicker && $event.target.showPicker()" class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white cursor-pointer">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">السبب / الملاحظات:</label>
+          <input v-model="leaveForm.notes" placeholder="أسبوعية، عارضة..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button @click="saveLeave" class="flex-1 bg-cyan-500 hover:bg-cyan-600 text-dark-900 font-bold py-2 rounded-xl text-xs">تسجيل</button>
+          <button @click="closeAllModals()" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
+        </div>
       </div>
     </div>
-  </div>
+  </teleport>
 
 </div>
 
@@ -764,17 +734,51 @@
       const initCashTr = ref(0);
       const initInstaTr = ref(0);
 
-      // Modals
+      // Modals State
       const showOrderModal = ref(false);
       const showExpenseModal = ref(false);
       const showTreasuryModal = ref(false);
       const showLeaveModal = ref(false);
 
+      const closeAllModals = () => {
+        showOrderModal.value = false;
+        showExpenseModal.value = false;
+        showTreasuryModal.value = false;
+        showLeaveModal.value = false;
+      };
+
+      const openOrderModal = () => {
+        closeAllModals();
+        resetOrderForm();
+        showOrderModal.value = true;
+      };
+
+      const openExpenseModal = () => {
+        closeAllModals();
+        resetExpenseForm();
+        showExpenseModal.value = true;
+      };
+
+      const openTreasuryModal = () => {
+        closeAllModals();
+        showTreasuryModal.value = true;
+      };
+
+      const openLeaveModal = () => {
+        closeAllModals();
+        showLeaveModal.value = true;
+      };
+
+      const switchTab = (tab) => {
+        closeAllModals();
+        activeTab.value = tab;
+      };
+
       const timeSlots = [
         "3:00 - 4:00", "3:00 - 4:30", "4:00 - 5:00", "5:00 - 6:00", "5:00 - 6:30",
         "6:00 - 7:00", "6:30 - 8:00", "7:00 - 8:00", "8:00 - 9:00", "8:00 - 9:30",
         "9:00 - 10:00", "9:30 - 11:00", "10:00 - 11:00", "10:00 - 11:30", "11:00 - 12:00",
-        "11:30 - 1:00", "12:00 - 1:00",  "12:00 - 1:30" , "1:00 - 2:00", "1:30 - 3:00", "2:00 - 3:00"
+        "11:30 - 1:00", "12:00 - 1:00" , "12:00 - 1:30", "1:00 - 2:00", "1:30 - 3:00", "2:00 - 3:00"
       ];
 
       const orderForm = ref({ id: null, time: timeSlots[0], customer: '', is_sub: false, price: null, payment: 'None', notes: '' });
@@ -793,7 +797,6 @@
         });
       });
 
-      // Filtered expenses for drill-down
       const filteredExpenses = computed(() => {
         if (!reportData.value?.raw_expenses) return [];
         return reportData.value.raw_expenses.filter(ex => {
@@ -844,7 +847,6 @@
         loadReports();
       };
 
-      // Export Native Clean PDF
       const exportPDF = () => {
         window.print();
       };
@@ -890,12 +892,12 @@
         loadShift();
       };
 
-      // Orders Actions
       const resetOrderForm = () => {
         orderForm.value = { id: null, time: timeSlots[0], customer: '', is_sub: false, price: null, payment: 'None', notes: '' };
       };
 
       const editOrder = (o) => {
+        closeAllModals();
         orderForm.value = { id: o.id, time: o.time, customer: o.customer, is_sub: o.is_subscription, price: o.price, payment: o.payment, notes: o.notes };
         showOrderModal.value = true;
       };
@@ -915,7 +917,7 @@
         } else {
           await fetch('/api/orders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         }
-        showOrderModal.value = false;
+        closeAllModals();
         loadShift();
       };
 
@@ -926,12 +928,12 @@
         }
       };
 
-      // Expenses Actions
       const resetExpenseForm = () => {
         expenseForm.value = { id: null, person: meta.value.employees[0] || 'عام', type: meta.value.categories[0] || 'عام', amount: null, source: 'الداخل', notes: '' };
       };
 
       const editExpense = (e) => {
+        closeAllModals();
         expenseForm.value = { id: e.id, person: e.person, type: e.type, amount: e.amount, source: e.source, notes: e.notes };
         showExpenseModal.value = true;
       };
@@ -951,7 +953,7 @@
         } else {
           await fetch('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         }
-        showExpenseModal.value = false;
+        closeAllModals();
         loadShift();
       };
 
@@ -962,7 +964,6 @@
         }
       };
 
-      // Shift Actions
       const closeShift = async () => {
         if (confirm('هل أنت متأكد من إغلاق الوردية وتجميد الأرصدة؟')) {
           await fetch(`/api/shift/${shiftData.value.day.id}/close`, { method: 'POST' });
@@ -989,11 +990,10 @@
             description: treasuryForm.value.desc
           })
         });
-        showTreasuryModal.value = false;
+        closeAllModals();
         loadShift();
       };
 
-      // Reports
       const loadReports = async () => {
         let url = `/api/reports?start_date=${reportStart.value}&end_date=${reportEnd.value}`;
         if (reportScope.value !== 'all') url += `&region_id=${reportScope.value}`;
@@ -1001,7 +1001,6 @@
         reportData.value = await res.json();
       };
 
-      // Leaves
       const loadLeaves = async () => {
         const res = await fetch('/api/leaves');
         leavesList.value = await res.json();
@@ -1018,7 +1017,7 @@
             notes: leaveForm.value.notes
           })
         });
-        showLeaveModal.value = false;
+        closeAllModals();
         loadLeaves();
       };
 
@@ -1029,7 +1028,6 @@
         }
       };
 
-      // Settings
       const addEmployee = async () => {
         if (!newEmpName.value.trim()) return;
         await fetch(`/api/employees?name=${encodeURIComponent(newEmpName.value)}&region_id=${selectedRegionId.value}`, { method: 'POST' });
@@ -1076,8 +1074,9 @@
         showOrderModal, showExpenseModal, showTreasuryModal, showLeaveModal,
         orderForm, expenseForm, treasuryForm, leaveForm,
         tabClass, formatNum, setDatePreset, exportPDF, loadShift, onRegionChange,
-        resetOrderForm, editOrder, saveOrder, deleteOrder,
-        resetExpenseForm, editExpense, saveExpense, deleteExpense,
+        openOrderModal, openExpenseModal, openTreasuryModal, openLeaveModal, closeAllModals, switchTab,
+        editOrder, saveOrder, deleteOrder,
+        editExpense, saveExpense, deleteExpense,
         closeShift, reopenShift, saveTreasury, loadReports, saveLeave, deleteLeave,
         addEmployee, removeEmployee, addCategory, removeCategory, saveInitialBalances
       };
