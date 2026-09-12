@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, Date, Enum, Numeric, DateTime, func
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
-# 1. الاتصال بقاعدة البيانات السحابية
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -17,7 +16,7 @@ engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300) if DA
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
 Base = declarative_base()
 
-# 2. القوائم الثابتة (Enums)
+# Enums
 class ExpenseSource(str, enum.Enum):
     inside = "الداخل"
     cash_treasury = "عهدة Cash"
@@ -37,7 +36,7 @@ class MovementType(str, enum.Enum):
     addition = "إضافة"
     withdrawal = "سحب"
 
-# 3. جداول قاعدة البيانات المحكمة
+# Tables
 class Region(Base):
     __tablename__ = 'regions'
     id = Column(Integer, primary_key=True)
@@ -147,7 +146,6 @@ class Leave(Base):
 if engine:
     Base.metadata.create_all(bind=engine)
 
-# 4. إعداد السيرفر
 app = FastAPI(title="Catchy Finance API")
 app.add_middleware(
     CORSMiddleware,
@@ -158,12 +156,12 @@ app.add_middleware(
 )
 
 def get_db():
-    if not SessionLocal: raise HTTPException(status_code=500, detail="Database error")
+    if not SessionLocal: raise HTTPException(status_code=500, detail="DB Error")
     db = SessionLocal()
     try: yield db
     finally: db.close()
 
-# Pydantic Schemas
+# Schemas
 class OrderIn(BaseModel):
     business_day_id: int
     order_time: str
@@ -209,13 +207,20 @@ class SettlementIn(BaseModel):
     settlement_date: str
     notes: Optional[str] = ""
 
+class TreasurySettlementIn(BaseModel):
+    region_id: int
+    shift_date: str
+    treasury_type: str
+    amount: float
+    notes: Optional[str] = "تصفية وتوريد نقدية"
+
 class LeaveIn(BaseModel):
     region_id: int
     employee_name: str
     leave_date: str
     notes: Optional[str] = "إجازة"
 
-# 5. نقاط الـ API
+# Endpoints
 @app.get("/api/regions")
 def get_regions(db: Session = Depends(get_db)):
     if db.query(Region).count() == 0:
@@ -261,13 +266,19 @@ def get_shift(region_id: int, date_str: str, db: Session = Depends(get_db)):
     exp_insta_tr = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.insta_treasury]) + sum([float(p.amount) for p in purchases if p.source == ExpenseSource.insta_treasury])
     total_exp = exp_inside + exp_cash_tr + exp_insta_tr
 
+    # حساب الإضافات (التغذية)
     add_inside = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.addition])
     add_cash_tr = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.addition])
     add_insta_tr = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.addition])
 
-    curr_inside = float(current_day.opening_inside or 0) + cash_rev + add_inside - exp_inside
-    curr_cash_tr = float(current_day.opening_cash_treasury or 0) + add_cash_tr - exp_cash_tr
-    curr_insta_tr = float(current_day.opening_insta_treasury or 0) + add_insta_tr - exp_insta_tr
+    # حساب السحوبات والتوريدات للتصفية
+    with_inside = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.withdrawal])
+    with_cash_tr = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.withdrawal])
+    with_insta_tr = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.withdrawal])
+
+    curr_inside = float(current_day.opening_inside or 0) + cash_rev + add_inside - exp_inside - with_inside
+    curr_cash_tr = float(current_day.opening_cash_treasury or 0) + add_cash_tr - exp_cash_tr - with_cash_tr
+    curr_insta_tr = float(current_day.opening_insta_treasury or 0) + add_insta_tr - exp_insta_tr - with_insta_tr
     total_resp = curr_inside + curr_cash_tr + curr_insta_tr
 
     return {
@@ -278,10 +289,10 @@ def get_shift(region_id: int, date_str: str, db: Session = Depends(get_db)):
         "orders": [{"id": o.id, "time": o.order_time, "customer": o.customer_name, "is_subscription": o.is_subscription, "price": int(o.price), "payment": o.payment_method.value, "notes": o.notes or ""} for o in orders],
         "expenses": [{"id": e.id, "person": e.person_entity, "type": e.expense_type, "amount": int(e.amount), "source": e.source.value, "notes": e.description or ""} for e in expenses],
         "penalties": [{"id": p.id, "employee": p.employee_name, "amount": int(p.amount), "notes": p.notes or ""} for p in penalties],
-        "treasury_movements": [{"id": m.id, "type": m.treasury_type.value, "amount": int(m.amount), "desc": m.description or "تغذية"} for m in movements]
+        "treasury_movements": [{"id": m.id, "type": m.treasury_type.value, "movement": m.movement_type.value, "amount": int(m.amount), "desc": m.description or "حركة"} for m in movements]
     }
 
-# Orders Endpoints
+# Orders
 @app.post("/api/orders")
 def add_order(payload: OrderIn, db: Session = Depends(get_db)):
     pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
@@ -305,7 +316,7 @@ def delete_order(order_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Expenses Endpoints
+# Expenses
 @app.post("/api/expenses")
 def add_expense(payload: ExpenseIn, db: Session = Depends(get_db)):
     src = ExpenseSource.inside if payload.source == "الداخل" else (ExpenseSource.cash_treasury if payload.source == "عهدة Cash" else ExpenseSource.insta_treasury)
@@ -328,7 +339,7 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Penalties (الخصومات)
+# Penalties
 @app.post("/api/penalties")
 def add_penalty(payload: PenaltyIn, db: Session = Depends(get_db)):
     db.add(Penalty(business_day_id=payload.business_day_id, employee_name=payload.employee_name, amount=payload.amount, notes=payload.notes))
@@ -341,7 +352,7 @@ def delete_penalty(penalty_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Purchases (المشتريات والصيانة)
+# Purchases
 @app.get("/api/purchases")
 def get_purchases(region_id: Optional[int] = None, db: Session = Depends(get_db)):
     q = db.query(Purchase).order_by(Purchase.purchase_date.desc())
@@ -363,7 +374,7 @@ def delete_purchase(purchase_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Treasury & Inside Injections (التغذية للداخل والعهد)
+# Treasury Movements
 @app.post("/api/treasury-feed")
 def add_treasury(payload: TreasuryIn, db: Session = Depends(get_db)):
     tt = TreasuryType.inside if payload.treasury_type == "الداخل" else (TreasuryType.cash if payload.treasury_type == "عهدة Cash" else TreasuryType.insta)
@@ -377,9 +388,9 @@ def delete_treasury(movement_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Settlements (التصفية وتسوية الديون)
+# Settlements (الموظفين + الخزائن)
 @app.get("/api/settlements/summary")
-def get_settlements_summary(db: Session = Depends(get_db)):
+def get_settlements_summary(region_id: Optional[int] = None, shift_date: Optional[str] = None, db: Session = Depends(get_db)):
     expenses = db.query(Expense).all()
     penalties = db.query(Penalty).all()
     settlements = db.query(Settlement).filter(Settlement.entity_type == "employee").all()
@@ -390,17 +401,46 @@ def get_settlements_summary(db: Session = Depends(get_db)):
 
     emp_balances = {}
     for e in expenses:
-        if is_deductible(e.expense_type):
-            emp_balances[e.person_entity] = emp_balances.get(e.person_entity, 0) + int(e.amount)
+        if is_deductible(e.expense_type): emp_balances[e.person_entity] = emp_balances.get(e.person_entity, 0) + int(e.amount)
     for p in penalties:
         emp_balances[p.employee_name] = emp_balances.get(p.employee_name, 0) + int(p.amount)
     for s in settlements:
         emp_balances[s.name] = emp_balances.get(s.name, 0) - int(s.amount)
 
     emp_list = [{"name": k, "balance": max(0, v), "raw_balance": v} for k, v in emp_balances.items() if v != 0]
+
+    # جلب أرصدة الخزائن الحالية للفرع واليومية المحددة للتصفية
+    treasury_balances = {"inside": 0, "cash_tr": 0, "insta_tr": 0}
+    if region_id and shift_date:
+        t_d = datetime.strptime(shift_date, "%Y-%m-%d").date()
+        day = db.query(BusinessDay).filter(BusinessDay.region_id == region_id, BusinessDay.business_date == t_d).first()
+        if day:
+            orders = db.query(Order).filter(Order.business_day_id == day.id).all()
+            exps = db.query(Expense).filter(Expense.business_day_id == day.id).all()
+            purchs = db.query(Purchase).filter(Purchase.business_day_id == day.id).all()
+            movs = db.query(TreasuryMovement).filter(TreasuryMovement.business_day_id == day.id).all()
+
+            c_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
+            e_in = sum([float(e.amount) for e in exps if e.source == ExpenseSource.inside]) + sum([float(p.amount) for p in purchs if p.source == ExpenseSource.inside])
+            e_c = sum([float(e.amount) for e in exps if e.source == ExpenseSource.cash_treasury]) + sum([float(p.amount) for p in purchs if p.source == ExpenseSource.cash_treasury])
+            e_i = sum([float(e.amount) for e in exps if e.source == ExpenseSource.insta_treasury]) + sum([float(p.amount) for p in purchs if p.source == ExpenseSource.insta_treasury])
+
+            a_in = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.addition])
+            a_c = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.addition])
+            a_i = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.addition])
+
+            w_in = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.withdrawal])
+            w_c = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.withdrawal])
+            w_i = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.withdrawal])
+
+            treasury_balances["inside"] = max(0, int(float(day.opening_inside or 0) + c_rev + a_in - e_in - w_in))
+            treasury_balances["cash_tr"] = max(0, int(float(day.opening_cash_treasury or 0) + a_c - e_c - w_c))
+            treasury_balances["insta_tr"] = max(0, int(float(day.opening_insta_treasury or 0) + a_i - e_i - w_i))
+
     history = db.query(Settlement).order_by(Settlement.settlement_date.desc()).all()
     return {
         "employees": sorted(emp_list, key=lambda x: x["balance"], reverse=True),
+        "treasury_balances": treasury_balances,
         "history": [{"id": h.id, "type": h.entity_type, "name": h.name, "amount": int(h.amount), "date": h.settlement_date.strftime("%Y-%m-%d"), "notes": h.notes or ""} for h in history]
     }
 
@@ -411,13 +451,29 @@ def make_settlement(payload: SettlementIn, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
+# توريد وتصفية الخزائن الحقيقية (يسجل حركة سحب في اليومية)
+@app.post("/api/settlements/treasury")
+def settle_treasury(payload: TreasurySettlementIn, db: Session = Depends(get_db)):
+    s_d = datetime.strptime(payload.shift_date, "%Y-%m-%d").date()
+    day = db.query(BusinessDay).filter(BusinessDay.region_id == payload.region_id, BusinessDay.business_date == s_d).first()
+    if not day: raise HTTPException(status_code=400, detail="الوردية غير مفتوحة لهذا التاريخ")
+
+    tt = TreasuryType.inside if payload.treasury_type == "الداخل" else (TreasuryType.cash if payload.treasury_type == "عهدة Cash" else TreasuryType.insta)
+    
+    # تسجيل حركة سحب في اليومية لتنزيل الرصيد وترحيل الصافي
+    db.add(TreasuryMovement(business_day_id=day.id, treasury_type=tt, movement_type=MovementType.withdrawal, amount=payload.amount, description=f"تصفية وتوريد: {payload.notes}"))
+    # تسجيلها في جدول تاريخ التسويات
+    db.add(Settlement(entity_type="treasury", name=f"{payload.treasury_type} (فرع {payload.region_id})", amount=payload.amount, settlement_date=s_d, notes=payload.notes))
+    db.commit()
+    return {"status": "ok"}
+
 @app.delete("/api/settlements/{settlement_id}")
 def delete_settlement(settlement_id: int, db: Session = Depends(get_db)):
     db.query(Settlement).filter(Settlement.id == settlement_id).delete()
     db.commit()
     return {"status": "ok"}
 
-# Shift Control (إغلاق وإعادة فتح)
+# Shift Control
 @app.post("/api/shift/{day_id}/close")
 def close_shift(day_id: int, db: Session = Depends(get_db)):
     d = db.query(BusinessDay).get(day_id)
@@ -436,10 +492,14 @@ def close_shift(day_id: int, db: Session = Depends(get_db)):
     add_c = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.addition])
     add_i = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.addition])
 
+    with_in = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.withdrawal])
+    with_c = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.withdrawal])
+    with_i = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.withdrawal])
+
     d.status = "CLOSED"
-    d.closing_inside = float(d.opening_inside or 0) + cash_rev + add_in - exp_in
-    d.closing_cash_treasury = float(d.opening_cash_treasury or 0) + add_c - exp_c
-    d.closing_insta_treasury = float(d.opening_insta_treasury or 0) + add_i - exp_i
+    d.closing_inside = float(d.opening_inside or 0) + cash_rev + add_in - exp_in - with_in
+    d.closing_cash_treasury = float(d.opening_cash_treasury or 0) + add_c - exp_c - with_c
+    d.closing_insta_treasury = float(d.opening_insta_treasury or 0) + add_i - exp_i - with_i
     d.closed_at = datetime.utcnow()
     db.commit()
     return {"status": "ok"}
@@ -452,7 +512,7 @@ def reopen_shift(day_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Reports Engine (التقارير المجمعة)
+# Reports
 @app.get("/api/reports")
 def get_reports(start_date: str, end_date: str, region_id: Optional[int] = None, db: Session = Depends(get_db)):
     s_d, e_d = datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.strptime(end_date, "%Y-%m-%d").date()
@@ -520,7 +580,7 @@ def get_reports(start_date: str, end_date: str, region_id: Optional[int] = None,
         "raw_expenses": raw_exps
     }
 
-# Leaves & Settings Endpoints
+# Leaves & Settings
 @app.get("/api/leaves")
 def get_leaves(db: Session = Depends(get_db)):
     regions = {r.id: r.name for r in db.query(Region).all()}
