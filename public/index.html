@@ -69,7 +69,7 @@
 
   <!-- DESKTOP NAVIGATION TABS -->
   <div class="no-print hidden md:flex gap-2 mb-6 bg-dark-800 p-1.5 rounded-xl border border-dark-700">
-    <button @click="switchTab('shift')" :class="tabClass('shift')" class="flex-1 py-2 rounded-lg text-xs font-bold transition">🚗 الوردية</button>
+    <button @click="switchTab('shift')" :class="tabClass('shift')" class="flex-1 py-2 rounded-lg text-xs font-bold transition">🚗 Shift</button>
     <button @click="switchTab('reports')" :class="tabClass('reports')" class="flex-1 py-2 rounded-lg text-xs font-bold transition">📊 التقارير</button>
     <button @click="switchTab('purchases')" :class="tabClass('purchases')" class="flex-1 py-2 rounded-lg text-xs font-bold transition">🛠️ المشتريات والصيانة</button>
     <button @click="switchTab('settlements')" :class="tabClass('settlements')" class="flex-1 py-2 rounded-lg text-xs font-bold transition">⚖️ التصفية</button>
@@ -192,7 +192,7 @@
       <div v-else class="text-center py-4 text-xs text-slate-500">لا توجد مصاريف مسجلة اليوم.</div>
     </div>
 
-    <!-- Penalties Section in Shift (الخصومات) -->
+    <!-- Penalties Section in Shift -->
     <div class="bg-dark-800 border border-amber-500/30 p-3.5 rounded-2xl">
       <div class="flex items-center justify-between mb-2">
         <div>
@@ -222,10 +222,12 @@
       </div>
 
       <div v-if="shiftData?.treasury_movements?.length" class="bg-dark-800 border border-dark-700 p-3 rounded-xl space-y-1.5">
-        <span class="text-[11px] text-slate-400 font-bold block">🏦 حركات التغذية المسجلة اليوم:</span>
+        <span class="text-[11px] text-slate-400 font-bold block">🏦 حركات التغذية والتوريد المسجلة اليوم:</span>
         <div v-for="m in shiftData.treasury_movements" :key="m.id" class="bg-dark-900 border border-dark-700/60 p-2 rounded-xl flex items-center justify-between text-xs">
           <div>
-            <span class="font-bold text-white">{{ m.type }}: +{{ formatNum(m.amount) }} ج.م</span>
+            <span :class="m.movement === 'سحب' ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'">
+              {{ m.type }}: {{ m.movement === 'سحب' ? '-' : '+' }}{{ formatNum(m.amount) }} ج.م
+            </span>
             <span class="text-[11px] text-slate-400 mr-1.5">({{ m.desc }})</span>
           </div>
           <button v-if="shiftData?.day?.status === 'OPEN'" @click="deleteTreasuryMovement(m.id)" class="text-rose-400 hover:text-rose-300 p-1 font-bold">❌ حذف</button>
@@ -315,7 +317,7 @@
         </div>
       </div>
 
-      <!-- Salary Deductions Pivot (Includes Penalties) -->
+      <!-- Salary Deductions Pivot -->
       <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl">
         <h3 class="text-sm font-bold text-slate-200 mb-1">👨‍🔧 كشف تسوية الرواتب (سلف ومصروفات وخصومات)</h3>
         <p class="text-xs text-slate-400 mb-3">تشمل السلف والمصروفات الشخصية والخصومات الإدارية فقط.</p>
@@ -434,16 +436,16 @@
     </div>
   </div>
 
-  <!-- ================= 4. SETTLEMENTS VIEW ================= -->
+  <!-- ================= 4. SETTLEMENTS VIEW (COMPLETE WITH TREASURY SETTLEMENT) ================= -->
   <div v-if="!loading && activeTab === 'settlements'" class="space-y-4">
     <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl">
       <h2 class="text-sm font-bold text-slate-200 mb-1">⚖️ تصفية وتسوية حسابات الموظفين والعهد</h2>
-      <p class="text-xs text-slate-400">تصفير الديون أو تسجيل سداد جزئي لبدء الشهر على نظيف.</p>
+      <p class="text-xs text-slate-400">تصفير الديون أو توريد الخزائن للمالك (كلي أو جزئي) لبدء الدورة الجديدة على نظيف.</p>
     </div>
 
-    <!-- Outstanding Debts -->
+    <!-- 1. Employee Debts Settlement -->
     <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl space-y-3">
-      <h3 class="text-xs font-bold text-cyan-400">👤 تسوية سلف واستقطاعات الموظفين:</h3>
+      <h3 class="text-xs font-bold text-cyan-400">👤 1. تسوية سلف واستقطاعات الموظفين (الشركة مجمعة):</h3>
       <div v-if="settlementsData.employees?.length" class="space-y-2">
         <div v-for="emp in settlementsData.employees" :key="emp.name" class="bg-dark-900 border border-dark-700 p-3 rounded-xl flex items-center justify-between flex-wrap gap-2 text-xs">
           <div>
@@ -463,17 +465,72 @@
       <div v-else class="text-center py-4 text-xs text-slate-500">كل حسابات الموظفين مسواة بالكامل ومفيش أي سلف متأخرة! 👏</div>
     </div>
 
-    <!-- History -->
+    <!-- 2. Treasury & Safe Settlement (NEW: تصفية وتوريد الخزائن الثلاثة) -->
+    <div class="bg-dark-800 border border-emerald-500/30 p-4 rounded-2xl space-y-3">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="text-xs font-bold text-emerald-400">🏦 2. تصفية وتوريد الخزائن والعهد (فرع {{ currentRegion?.name }}):</h3>
+          <p class="text-[11px] text-slate-400 mt-0.5">تسليم وتوريد نقدية الخزينة للمالك (تصفير كامل أو توريد جزء وترك الباقي فكة).</p>
+        </div>
+        <button @click="loadSettlements" class="text-xs bg-dark-700 hover:bg-dark-600 px-2.5 py-1 rounded-lg text-slate-300">تحديث الأرصدة 🔄</button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+        <!-- 1. الداخل -->
+        <div class="bg-dark-900 border border-dark-700 p-3 rounded-xl space-y-2 text-center">
+          <span class="text-[11px] text-slate-400 block font-bold">💵 رصيد الداخل الحالي</span>
+          <span class="text-lg font-black text-cyan-400">{{ formatNum(settlementsData.treasury_balances?.inside) }} ج.م</span>
+          <div class="pt-1 flex flex-col gap-1.5">
+            <button @click="fullSettleTreasury('الداخل', settlementsData.treasury_balances?.inside)" :disabled="!settlementsData.treasury_balances?.inside" class="w-full bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400 font-bold py-1.5 rounded-lg text-xs disabled:opacity-30">
+              ✔️ تصفير وتوريد كامل
+            </button>
+            <button @click="openPartialTreasury('الداخل', settlementsData.treasury_balances?.inside)" :disabled="!settlementsData.treasury_balances?.inside" class="w-full bg-dark-700 hover:bg-dark-600 text-slate-200 font-bold py-1.5 rounded-lg text-xs disabled:opacity-30">
+              💵 توريد جزئي
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. عهدة كاش -->
+        <div class="bg-dark-900 border border-dark-700 p-3 rounded-xl space-y-2 text-center">
+          <span class="text-[11px] text-slate-400 block font-bold">🏦 رصيد عهدة Cash الحالية</span>
+          <span class="text-lg font-black text-cyan-400">{{ formatNum(settlementsData.treasury_balances?.cash_tr) }} ج.م</span>
+          <div class="pt-1 flex flex-col gap-1.5">
+            <button @click="fullSettleTreasury('عهدة Cash', settlementsData.treasury_balances?.cash_tr)" :disabled="!settlementsData.treasury_balances?.cash_tr" class="w-full bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400 font-bold py-1.5 rounded-lg text-xs disabled:opacity-30">
+              ✔️ تصفير وتوريد كامل
+            </button>
+            <button @click="openPartialTreasury('عهدة Cash', settlementsData.treasury_balances?.cash_tr)" :disabled="!settlementsData.treasury_balances?.cash_tr" class="w-full bg-dark-700 hover:bg-dark-600 text-slate-200 font-bold py-1.5 rounded-lg text-xs disabled:opacity-30">
+              💵 توريد جزئي
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. عهدة انستا -->
+        <div class="bg-dark-900 border border-dark-700 p-3 rounded-xl space-y-2 text-center">
+          <span class="text-[11px] text-slate-400 block font-bold">📱 رصيد عهدة Insta الحالية</span>
+          <span class="text-lg font-black text-cyan-400">{{ formatNum(settlementsData.treasury_balances?.insta_tr) }} ج.م</span>
+          <div class="pt-1 flex flex-col gap-1.5">
+            <button @click="fullSettleTreasury('عهدة Insta', settlementsData.treasury_balances?.insta_tr)" :disabled="!settlementsData.treasury_balances?.insta_tr" class="w-full bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400 font-bold py-1.5 rounded-lg text-xs disabled:opacity-30">
+              ✔️ تصفير وتوريد كامل
+            </button>
+            <button @click="openPartialTreasury('عهدة Insta', settlementsData.treasury_balances?.insta_tr)" :disabled="!settlementsData.treasury_balances?.insta_tr" class="w-full bg-dark-700 hover:bg-dark-600 text-slate-200 font-bold py-1.5 rounded-lg text-xs disabled:opacity-30">
+              💵 توريد جزئي
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settlements History -->
     <div class="bg-dark-800 border border-dark-700 p-4 rounded-2xl">
-      <h3 class="text-xs font-bold text-slate-300 mb-2">📑 سجل التسويات والتصفيات السابقة:</h3>
+      <h3 class="text-xs font-bold text-slate-300 mb-2">📑 سجل التسويات والتوريدات السابقة:</h3>
       <div v-if="settlementsData.history?.length" class="space-y-2">
         <div v-for="h in settlementsData.history" :key="h.id" class="bg-dark-900 border border-dark-700/60 p-2.5 rounded-xl flex items-center justify-between text-xs">
           <div>
-            <span class="font-bold text-white">تسوية: {{ h.name }}</span>
+            <span class="font-bold text-white">{{ h.type === 'treasury' ? '🏦 توريد خزينة: ' : '👤 تسوية موظف: ' }}{{ h.name }}</span>
             <span class="text-emerald-400 font-black mr-2">({{ formatNum(h.amount) }} ج.م)</span>
             <div class="text-[11px] text-slate-400 mt-0.5">📅 {{ h.date }} | 📝 {{ h.notes || 'تسوية' }}</div>
           </div>
-          <button @click="deleteSettlement(h.id)" class="text-rose-400 hover:text-rose-300 p-1">❌ إلغاء التسوية</button>
+          <button @click="deleteSettlement(h.id)" class="text-rose-400 hover:text-rose-300 p-1">❌ إلغاء</button>
         </div>
       </div>
       <div v-else class="text-center py-4 text-xs text-slate-500">لا توجد تسويات مسجلة حتى الآن.</div>
@@ -688,7 +745,7 @@
     </div>
   </teleport>
 
-  <!-- 3. Penalty Modal (الخصومات) -->
+  <!-- 3. Penalty Modal -->
   <teleport to="body">
     <div v-if="showPenaltyModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
       <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl my-auto">
@@ -715,7 +772,7 @@
     </div>
   </teleport>
 
-  <!-- 4. Purchase Modal (المشتريات والصيانة) -->
+  <!-- 4. Purchase Modal -->
   <teleport to="body">
     <div v-if="showPurchaseModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
       <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl my-auto">
@@ -787,7 +844,7 @@
     </div>
   </teleport>
 
-  <!-- 6. Partial Settlement Modal (التصفية الجزئية) -->
+  <!-- 6. Partial Employee Settlement Modal -->
   <teleport to="body">
     <div v-if="showPartialSettleModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
       <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl my-auto">
@@ -800,7 +857,7 @@
         </div>
         <div>
           <label class="text-[11px] text-slate-400 block mb-1">ملاحظات التسوية:</label>
-          <input v-model="partialSettleNotes" placeholder="سداد جزء من سلفة شهر كذا..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+          <input v-model="partialSettleNotes" placeholder="سداد جزء من سلفة..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
         </div>
         <div class="flex gap-2 pt-2">
           <button @click="confirmPartialSettle" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-dark-900 font-bold py-2 rounded-xl text-xs">تأكيد السداد</button>
@@ -810,7 +867,30 @@
     </div>
   </teleport>
 
-  <!-- 7. Leave Modal -->
+  <!-- 7. Partial Treasury Settlement Modal (NEW: توريد جزئي للخزينة) -->
+  <teleport to="body">
+    <div v-if="showPartialTreasuryModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
+      <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl my-auto">
+        <h3 class="text-sm font-bold text-white">💵 توريد جزئي للمالك وترحيل الباقي</h3>
+        <p class="text-xs text-slate-400">الخزينة: <span class="text-cyan-400 font-bold">{{ partialTreasuryTarget?.type }}</span></p>
+        <p class="text-xs text-emerald-400 font-bold">الرصيد المتاح حالياً: {{ formatNum(partialTreasuryTarget?.balance) }} ج.م</p>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">المبلغ المورّد للمالك الآن (ج.م):</label>
+          <input type="number" v-model.number="partialTreasuryAmount" placeholder="المبلغ..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white font-bold">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-400 block mb-1">ملاحظات التوريد:</label>
+          <input v-model="partialTreasuryNotes" placeholder="توريد أرباح، تسليم نقدية..." class="w-full bg-dark-900 border border-dark-700 rounded-xl px-2.5 py-2 text-xs text-white">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button @click="confirmPartialTreasury" class="flex-1 bg-emerald-500 hover:bg-emerald-600 text-dark-900 font-bold py-2 rounded-xl text-xs">تأكيد التوريد</button>
+          <button @click="showPartialTreasuryModal = false" class="flex-1 bg-dark-700 hover:bg-dark-600 text-white font-bold py-2 rounded-xl text-xs">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  </teleport>
+
+  <!-- 8. Leave Modal -->
   <teleport to="body">
     <div v-if="showLeaveModal" class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-[9999]" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0;">
       <div class="bg-dark-800 border border-dark-700 rounded-2xl p-4 w-full max-w-sm space-y-3 shadow-2xl my-auto">
@@ -864,7 +944,7 @@
 
       // Purchases & Settlements State
       const purchasesList = ref([]);
-      const settlementsData = ref({ employees: [], history: [] });
+      const settlementsData = ref({ employees: [], treasury_balances: { inside: 0, cash_tr: 0, insta_tr: 0 }, history: [] });
 
       // Leaves State
       const leavesList = ref([]);
@@ -890,6 +970,12 @@
       const partialSettleAmount = ref(null);
       const partialSettleNotes = ref('');
 
+      // Modal for Partial Treasury Settle (NEW)
+      const showPartialTreasuryModal = ref(false);
+      const partialTreasuryTarget = ref(null);
+      const partialTreasuryAmount = ref(null);
+      const partialTreasuryNotes = ref('');
+
       const closeAllModals = () => {
         showOrderModal.value = false;
         showExpenseModal.value = false;
@@ -898,6 +984,7 @@
         showTreasuryModal.value = false;
         showLeaveModal.value = false;
         showPartialSettleModal.value = false;
+        showPartialTreasuryModal.value = false;
       };
 
       const openOrderModal = () => { closeAllModals(); resetOrderForm(); showOrderModal.value = true; };
@@ -1011,9 +1098,10 @@
         localStorage.setItem('cf_selected_region', selectedRegionId.value);
         loadShift();
         if (activeTab.value === 'purchases') loadPurchases();
+        if (activeTab.value === 'settlements') loadSettlements();
       };
 
-      // Orders
+      // Orders Actions
       const resetOrderForm = () => { orderForm.value = { id: null, time: timeSlots[0], customer: '', is_sub: false, price: null, payment: 'None', notes: '' }; };
       const editOrder = (o) => { closeAllModals(); orderForm.value = { id: o.id, time: o.time, customer: o.customer, is_sub: o.is_subscription, price: o.price, payment: o.payment, notes: o.notes }; showOrderModal.value = true; };
       const saveOrder = async () => {
@@ -1024,7 +1112,7 @@
       };
       const deleteOrder = async (id) => { if (confirm('حذف الطلب؟')) { await fetch(`/api/orders/${id}`, { method: 'DELETE' }); loadShift(); } };
 
-      // Expenses
+      // Expenses Actions
       const resetExpenseForm = () => { expenseForm.value = { id: null, person: meta.value.employees[0] || 'عام', type: meta.value.categories[0] || 'عام', amount: null, source: 'الداخل', notes: '' }; };
       const editExpense = (e) => { closeAllModals(); expenseForm.value = { id: e.id, person: e.person, type: e.type, amount: e.amount, source: e.source, notes: e.notes }; showExpenseModal.value = true; };
       const saveExpense = async () => {
@@ -1036,7 +1124,7 @@
       };
       const deleteExpense = async (id) => { if (confirm('حذف المصروف؟')) { await fetch(`/api/expenses/${id}`, { method: 'DELETE' }); loadShift(); } };
 
-      // Penalties
+      // Penalties Actions
       const resetPenaltyForm = () => { penaltyForm.value = { emp: meta.value.employees[0] || '', amount: null, notes: '' }; };
       const savePenalty = async () => {
         if (!penaltyForm.value.amount) return alert('اكتب المبلغ');
@@ -1045,7 +1133,7 @@
       };
       const deletePenalty = async (id) => { if (confirm('حذف هذا الخصم؟')) { await fetch(`/api/penalties/${id}`, { method: 'DELETE' }); loadShift(); } };
 
-      // Purchases
+      // Purchases Actions
       const loadPurchases = async () => {
         const res = await fetch(`/api/purchases?region_id=${selectedRegionId.value}`);
         purchasesList.value = await res.json();
@@ -1058,11 +1146,13 @@
       };
       const deletePurchase = async (id) => { if (confirm('حذف هذه الفاتورة؟')) { await fetch(`/api/purchases/${id}`, { method: 'DELETE' }); loadPurchases(); loadShift(); } };
 
-      // Settlements
+      // Settlements Actions (Employees + Treasuries)
       const loadSettlements = async () => {
-        const res = await fetch('/api/settlements/summary');
+        const res = await fetch(`/api/settlements/summary?region_id=${selectedRegionId.value}&shift_date=${shiftDate.value}`);
         settlementsData.value = await res.json();
       };
+      
+      // Employee Settle
       const fullSettleEmployee = async (emp) => {
         if (confirm(`تصفير وسداد كامل مديونية الموظف ${emp.name} بمبلغ ${formatNum(emp.balance)} ج.م؟`)) {
           await fetch('/api/settlements', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ entity_type: 'employee', name: emp.name, amount: emp.balance, settlement_date: new Date().toISOString().split('T')[0], notes: 'سداد وتصفير كامل للمديونية' }) });
@@ -1081,17 +1171,65 @@
         showPartialSettleModal.value = false;
         loadSettlements();
       };
-      const deleteSettlement = async (id) => { if (confirm('إلغاء حركة التسوية هذه؟')) { await fetch(`/api/settlements/${id}`, { method: 'DELETE' }); loadSettlements(); } };
 
-      // Treasury Movements
-      const deleteTreasuryMovement = async (id) => { if (confirm('حذف التغذية؟')) { await fetch(`/api/treasury-movements/${id}`, { method: 'DELETE' }); loadShift(); } };
+      // Treasury Settle (NEW: تصفية وتوريد الخزائن كامل وجزئي)
+      const fullSettleTreasury = async (type, amount) => {
+        if (!amount || amount <= 0) return alert('الرصيد بالفعل صفر!');
+        if (confirm(`تصفير وتوريد كامل لرصيد (${type}) بمبلغ ${formatNum(amount)} ج.م للمالك؟`)) {
+          await fetch('/api/settlements/treasury', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              region_id: selectedRegionId.value,
+              shift_date: shiftDate.value,
+              treasury_type: type,
+              amount: amount,
+              notes: 'تصفير وتوريد كامل للمالك'
+            })
+          });
+          loadSettlements();
+          loadShift();
+        }
+      };
+
+      const openPartialTreasury = (type, balance) => {
+        if (!balance || balance <= 0) return alert('الرصيد بالفعل صفر!');
+        partialTreasuryTarget.value = { type, balance };
+        partialTreasuryAmount.value = null;
+        partialTreasuryNotes.value = '';
+        showPartialTreasuryModal.value = true;
+      };
+
+      const confirmPartialTreasury = async () => {
+        if (!partialTreasuryAmount.value) return alert('اكتب المبلغ');
+        if (partialTreasuryAmount.value > partialTreasuryTarget.value.balance) return alert('المبلغ أكبر من الرصيد المتاح!');
+        await fetch('/api/settlements/treasury', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            region_id: selectedRegionId.value,
+            shift_date: shiftDate.value,
+            treasury_type: partialTreasuryTarget.value.type,
+            amount: partialTreasuryAmount.value,
+            notes: partialTreasuryNotes.value || 'توريد جزئي للمالك'
+          })
+        });
+        showPartialTreasuryModal.value = false;
+        loadSettlements();
+        loadShift();
+      };
+
+      const deleteSettlement = async (id) => { if (confirm('إلغاء حركة التسوية والتوريد هذه؟')) { await fetch(`/api/settlements/${id}`, { method: 'DELETE' }); loadSettlements(); loadShift(); } };
+
+      // Treasury Movements Actions
+      const deleteTreasuryMovement = async (id) => { if (confirm('حذف هذه الحركة؟')) { await fetch(`/api/treasury-movements/${id}`, { method: 'DELETE' }); loadShift(); } };
       const saveTreasury = async () => {
         if (!treasuryForm.value.amount) return;
         await fetch('/api/treasury-feed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ business_day_id: shiftData.value.day.id, treasury_type: treasuryForm.value.type, amount: treasuryForm.value.amount, description: treasuryForm.value.desc }) });
         closeAllModals(); loadShift();
       };
 
-      // Shift Close/Reopen
+      // Shift Control
       const closeShift = async () => { if (confirm('إغلاق وتجميد الوردية؟')) { await fetch(`/api/shift/${shiftData.value.day.id}/close`, { method: 'POST' }); loadShift(); } };
       const reopenShift = async () => { if (confirm('إعادة فتح الوردية للتعديل؟')) { await fetch(`/api/shift/${shiftData.value.day.id}/reopen`, { method: 'POST' }); loadShift(); } };
 
@@ -1132,12 +1270,14 @@
         purchasesList, settlementsData, leavesList, newEmpName, newCatName, newPCatName, initBalDate, initInside, initCashTr, initInstaTr,
         showOrderModal, showExpenseModal, showPenaltyModal, showPurchaseModal, showTreasuryModal, showLeaveModal, showPartialSettleModal,
         partialSettleTarget, partialSettleAmount, partialSettleNotes,
+        showPartialTreasuryModal, partialTreasuryTarget, partialTreasuryAmount, partialTreasuryNotes,
         orderForm, expenseForm, penaltyForm, purchaseForm, treasuryForm, leaveForm,
         tabClass, formatNum, setDatePreset, exportPDF, loadShift, onRegionChange,
         openOrderModal, openExpenseModal, openPenaltyModal, openTreasuryModal, openLeaveModal, closeAllModals, switchTab,
         editOrder, saveOrder, deleteOrder, editExpense, saveExpense, deleteExpense,
         deleteTreasuryMovement, savePenalty, deletePenalty, loadPurchases, savePurchase, deletePurchase,
         loadSettlements, fullSettleEmployee, openPartialSettle, confirmPartialSettle, deleteSettlement,
+        fullSettleTreasury, openPartialTreasury, confirmPartialTreasury,
         closeShift, reopenShift, saveTreasury, loadReports, saveLeave, deleteLeave,
         addEmployee, removeEmployee, addCategory, removeCategory, addPurchaseCategory, removePurchaseCategory, saveInitialBalances
       };
