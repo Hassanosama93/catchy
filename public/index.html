@@ -118,7 +118,6 @@
     <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
-          <!-- Hidden File Input for Excel Upload -->
           <input type="file" ref="excelFileInput" @change="handleExcelUpload" accept=".xlsx, .xls, .csv" class="hidden">
           <button @click="$refs.excelFileInput.click()" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow flex items-center gap-1.5">
             📤 رفع شيت إكسيل
@@ -147,32 +146,26 @@
     </div>
 
     <!-- Color Legend -->
-    <!-- Color Legend -->
-<div class="flex items-center gap-3 text-[11px] font-bold text-slate-500 px-1 flex-wrap">
+    <div class="flex items-center gap-3 text-[11px] font-bold text-slate-500 px-1 flex-wrap">
+      <span class="flex items-center gap-1">
+        <span class="w-3 h-3 rounded-full bg-white border border-slate-300"></span>
+        انتظار
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+        غسيل تم (معلق بدون تحصيل)
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+        تم التحصيل والدفع
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+        ملغي (Cancel)
+      </span>
+    </div>
 
-  <span class="flex items-center gap-1">
-    <span class="w-3 h-3 rounded-full bg-white border border-slate-300"></span>
-    انتظار
-  </span>
-
-  <span class="flex items-center gap-1">
-    <span class="w-3 h-3 rounded-full bg-amber-400"></span>
-    غسيل تم (معلق بدون تحصيل)
-  </span>
-
-  <span class="flex items-center gap-1">
-    <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-    تم التحصيل والدفع
-  </span>
-
-  <span class="flex items-center gap-1">
-    <span class="w-3 h-3 rounded-full bg-rose-500"></span>
-    ملغي (Cancel)
-  </span>
-
-</div>
-
-    <!-- Bookings Table with Smart Colors -->
+    <!-- Bookings Table with Smart Colors & Notes Column -->
     <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
       <div v-if="filteredBookings.length" class="overflow-x-auto">
         <table class="w-full text-right text-xs">
@@ -186,6 +179,7 @@
               <th class="py-3 px-3">الدفع</th>
               <th class="py-3 px-3">الحالة</th>
               <th class="py-3 px-3 text-center">تم التحصيل</th>
+              <th class="py-3 px-3">ملاحظات</th>
               <th class="py-3 px-3">إجراءات</th>
             </tr>
           </thead>
@@ -194,7 +188,6 @@
               <td class="py-2.5 px-3">
                 <div class="font-bold text-slate-900">{{ b.customer_name }}</div>
                 <div class="text-[11px] text-slate-500">{{ b.customer_phone || '-' }}</div>
-                <div v-if="b.notes" class="text-[10px] text-orange-600 mt-0.5">📝 {{ b.notes }}</div>
               </td>
               <td class="py-2.5 px-3 font-semibold">{{ b.branch }}</td>
               <td class="py-2.5 px-3">
@@ -233,6 +226,10 @@
               <td class="py-2.5 px-3 text-center">
                 <input type="checkbox" v-model="b.is_collected" @change="quickUpdateBooking(b)" class="w-4 h-4 rounded text-orange-600 cursor-pointer">
               </td>
+              <!-- Editable Notes Column -->
+              <td class="py-2.5 px-3">
+                <input type="text" v-model="b.notes" @change="quickUpdateBooking(b)" placeholder="اكتب ملاحظة..." class="w-28 sm:w-36 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 outline-none focus:border-orange-500">
+              </td>
               <td class="py-2.5 px-3 whitespace-nowrap">
                 <button @click="deleteBooking(b.id)" class="text-rose-500 hover:text-rose-700 p-1">❌</button>
               </td>
@@ -246,9 +243,9 @@
 
   <!-- ================= 2. TREASURY & EXPENSES (العهدة والمصروفات) ================= -->
   <div v-if="!loading && activeTab === 'treasury'" class="space-y-4">
-    <!-- 4 Top KPI Cards (The Unified Treasury Flow) -->
+    <!-- 4 Top KPI Cards -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-      <!-- 1. عهدة بداية اليوم (Editable Inline) -->
+      <!-- 1. عهدة بداية اليوم -->
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center">
         <div class="flex items-center justify-between mb-1">
           <span class="text-[11px] text-slate-500 font-bold">1. عهدة بداية اليوم</span>
@@ -257,13 +254,13 @@
         <span class="text-lg font-black text-slate-900">{{ formatNum(daySummary?.day?.opening_treasury) }}</span>
       </div>
 
-      <!-- 2. كاش اليوم المحصل (Live from Bookings) -->
+      <!-- 2. كاش اليوم المحصل -->
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center">
         <span class="text-[11px] text-slate-500 font-bold block mb-1">2. كاش الحجوزات المحصل</span>
         <span class="text-lg font-black text-emerald-600">{{ formatNum(daySummary?.day?.cash_collected) }}</span>
       </div>
 
-      <!-- 3. عهدة تحويل تزويد (Editable Inline) -->
+      <!-- 3. عهدة تحويل تزويد -->
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center">
         <div class="flex items-center justify-between mb-1">
           <span class="text-[11px] text-slate-500 font-bold">3. عهدة تحويل (تزويد)</span>
@@ -323,7 +320,7 @@
       <div v-else class="text-center py-6 text-slate-400 text-xs">لم يتم تسجيل أي مصروفات اليوم.</div>
     </div>
 
-    <!-- Bottom Final Balance Card (المتبقي الفعلي من العهدة) -->
+    <!-- Bottom Final Balance Card -->
     <div class="bg-slate-900 text-white p-4 rounded-2xl flex items-center justify-between shadow-lg">
       <div>
         <span class="text-xs text-slate-400 font-bold block">المتبقي الفعلي في الخزينة والدرج الآن:</span>
@@ -419,16 +416,21 @@
     </div>
   </div>
 
-  <!-- ================= 5. ADVANCES & LOANS (السحوبات والسلف مع مؤشر الألوان) ================= -->
+  <!-- ================= 5. ADVANCES & LOANS (السحوبات والسلف) ================= -->
   <div v-if="!loading && activeTab === 'advances'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between flex-wrap gap-2">
       <div>
         <h2 class="text-sm font-bold text-slate-900">💳 مؤشر خطورة مسحوبات وسلف الموظفين</h2>
         <p class="text-xs text-slate-500">🟢 آمن (حتى 35%) | 🟡 تحذير (35%-65%) | 🔴 خطر تجاوز الراتب (>65%)</p>
       </div>
-      <button @click="exportToExcel(payrollData.advances_overview, 'مسحوبات_وسلف_الموظفين')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition">
-        📥 تصدير Excel
-      </button>
+      <div class="flex items-center gap-2">
+        <button @click="openAdvanceModal" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow flex items-center gap-1.5">
+          + تسجيل سلفة جديدة
+        </button>
+        <button @click="exportToExcel(payrollData.advances_overview, 'مسحوبات_وسلف_الموظفين')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition">
+          📥 تصدير Excel
+        </button>
+      </div>
     </div>
 
     <!-- Cards Grid with Progress Bars & Accordion -->
@@ -466,7 +468,7 @@
           </div>
         </div>
 
-        <!-- Loan Installment Settle Input (سداد جزئي للسلفة يرحل للشهر) -->
+        <!-- Loan Installment Settle Input -->
         <div class="flex items-center gap-2 pt-1 border-t border-slate-100">
           <input type="number" v-model.number="adv.new_installment" placeholder="حدد قسط سلفة هذا الشهر..." class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 outline-none">
           <button @click="saveLoanInstallment(adv)" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition">
@@ -491,7 +493,7 @@
     </div>
   </div>
 
-  <!-- ================= 6. PAYROLL (المرتبات مع رسائل الواتساب) ================= -->
+  <!-- ================= 6. PAYROLL (المرتبات) ================= -->
   <div v-if="!loading && activeTab === 'payroll'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between flex-wrap gap-2">
       <div>
@@ -533,14 +535,12 @@
               <td class="py-2.5 px-3 text-rose-600">-{{ formatNum(p.loan_installment) }}</td>
               <td class="py-2.5 px-3 text-rose-600">-{{ formatNum(p.penalties) }}</td>
               <td class="py-2.5 px-3 text-rose-600">-{{ formatNum(p.unpaid_deduction) }} <span class="text-[10px] text-slate-400">({{ p.unpaid_days }} يوم)</span></td>
-              <!-- Manual Bonus -->
               <td class="py-2.5 px-3">
                 <input type="number" v-model.number="p.bonus" placeholder="0" class="w-16 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5 text-xs text-emerald-600 font-bold outline-none">
               </td>
               <td class="py-2.5 px-3 font-black text-emerald-600 text-sm">
                 {{ formatNum(p.net_salary + (p.bonus || 0)) }} ج.م
               </td>
-              <!-- WhatsApp One-Click Payslip -->
               <td class="py-2.5 px-3 no-print">
                 <button @click="sendWhatsAppSlip(p)" class="bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-2 py-1 rounded-lg text-[10px] transition shadow flex items-center gap-1">
                   📲 واتساب
@@ -591,7 +591,7 @@
     </div>
   </div>
 
-  <!-- ================= 8. ADMIN EXPENSES (مصروفات إدارية ورأسمالية) ================= -->
+  <!-- ================= 8. ADMIN EXPENSES (مصروفات إدارية) ================= -->
   <div v-if="!loading && activeTab === 'admin_exp'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
       <div>
@@ -628,7 +628,7 @@
     </div>
   </div>
 
-  <!-- ================= 9. COMPANY BI REPORTS (تقارير الشركة وقائمة الدخل) ================= -->
+  <!-- ================= 9. COMPANY BI REPORTS (تقارير الشركة) ================= -->
   <div v-if="!loading && activeTab === 'reports'" class="space-y-4">
     <!-- Filter Presets -->
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
@@ -650,7 +650,7 @@
       </div>
     </div>
 
-    <!-- P&L Waterfall Dashboard (قائمة الدخل التنفيذية) -->
+    <!-- P&L Waterfall Dashboard -->
     <div v-if="companyBI?.kpis" class="space-y-4">
       <div class="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-3">
         <h3 class="text-sm font-black text-slate-900 mb-2">📊 قائمة الدخل التنفيذية (P&L Waterfall)</h3>
@@ -684,7 +684,6 @@
             <span class="font-bold text-slate-700">➖ المصروفات الإدارية والإيجارات العامة:</span>
             <span class="font-black text-rose-600">-{{ formatNum(companyBI.kpis.total_admin) }} ج.م</span>
           </div>
-          <!-- Net Profit -->
           <div class="flex justify-between items-center py-3 bg-orange-50 border border-orange-200 px-4 rounded-xl">
             <span class="font-black text-orange-950 text-sm">★ صافي الأرباح الحقيقي للشركة:</span>
             <span class="font-black text-orange-600 text-xl">{{ formatNum(companyBI.kpis.net_profit) }} ج.م</span>
@@ -715,7 +714,6 @@
 
   <!-- ================= 10. SETTINGS (الضبط) ================= -->
   <div v-if="!loading && activeTab === 'settings'" class="space-y-4">
-    <!-- Employees Management + Basic Salary -->
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
       <h3 class="text-sm font-bold text-slate-900">👨‍🔧 إدارة الموظفين والراتب الأساسي</h3>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -723,7 +721,6 @@
         <input type="number" v-model.number="newEmpSalary" placeholder="الراتب الأساسي (ج.م)..." class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none">
         <button @click="addEmployee" class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow">إضافة موظف</button>
       </div>
-      <!-- Employees List -->
       <div class="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden mt-3">
         <div v-for="emp in meta.employees" :key="emp.id" class="p-2.5 flex items-center justify-between text-xs bg-slate-50/50">
           <span class="font-bold text-slate-900">👤 {{ emp.name }}</span>
@@ -737,7 +734,6 @@
       </div>
     </div>
 
-    <!-- Expense Categories -->
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
       <h3 class="text-sm font-bold text-slate-900">🏷️ بنود المصروفات والتشغيل</h3>
       <div class="flex gap-2">
@@ -832,7 +828,7 @@
     </div>
   </teleport>
 
-  <!-- 2. Edit Treasury Modal (تعديل عهدة البداية والتحويل مباشرة) -->
+  <!-- 2. Edit Treasury Modal -->
   <teleport to="body">
     <div v-if="showEditTreasuryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
@@ -961,7 +957,57 @@
     </div>
   </teleport>
 
-  <!-- 6. Purchase Modal -->
+  <!-- 6. Advance Modal (تسجيل سلفة موظف جديدة) -->
+  <teleport to="body">
+    <div v-if="showAdvanceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
+        <h3 class="text-sm font-bold text-slate-900">💳 تسجيل سلفة جديدة لموظف</h3>
+        <div>
+          <label class="text-[11px] text-slate-500 font-bold block mb-1">الموظف:</label>
+          <select v-model="advanceForm.person_entity" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs">
+            <option v-for="emp in meta.employees" :key="emp.name" :value="emp.name">{{ emp.name }}</option>
+          </select>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] text-slate-500 font-bold block mb-1">نوع الاستقطاع:</label>
+            <select v-model="advanceForm.expense_type" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs font-bold">
+              <option value="سلفة">سلفة (قرض مقسط)</option>
+              <option value="سحوبات من المرتب">سحوبات من المرتب</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-500 font-bold block mb-1">المبلغ (ج.م):</label>
+            <input type="number" v-model.number="advanceForm.amount" placeholder="المبلغ..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="text-[11px] text-slate-500 font-bold block mb-1">التاريخ:</label>
+            <input type="date" v-model="advanceForm.advance_date" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs outline-none">
+          </div>
+          <div>
+            <label class="text-[11px] text-slate-500 font-bold block mb-1">الفرع:</label>
+            <select v-model="advanceForm.branch" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs">
+              <option value="عام">عام</option>
+              <option value="الشروق">الشروق</option>
+              <option value="مدينتي">مدينتي</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-500 font-bold block mb-1">ملاحظات / سبب السلفة:</label>
+          <input v-model="advanceForm.notes" placeholder="اكتب تفاصيل السلفة..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs outline-none">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button @click="saveAdvance" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 rounded-xl text-xs transition shadow">حفظ السلفة</button>
+          <button @click="showAdvanceModal = false" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  </teleport>
+
+  <!-- 7. Purchase Modal -->
   <teleport to="body">
     <div v-if="showPurchaseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-md space-y-3 shadow-2xl">
@@ -1004,7 +1050,7 @@
     </div>
   </teleport>
 
-  <!-- 7. Admin Expense Modal -->
+  <!-- 8. Admin Expense Modal -->
   <teleport to="body">
     <div v-if="showAdminExpModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-md space-y-3 shadow-2xl">
@@ -1085,6 +1131,10 @@
       const leavesList = ref([]);
       const showLeaveModal = ref(false);
       const leaveForm = ref({ employee_name: '', leave_type: 'من رصيده', leave_date: new Date().toISOString().split('T')[0], notes: '' });
+
+      // Advances State
+      const showAdvanceModal = ref(false);
+      const advanceForm = ref({ person_entity: '', expense_type: 'سلفة', amount: null, advance_date: new Date().toISOString().split('T')[0], branch: 'عام', notes: '' });
 
       // Purchases & Admin Exp State
       const purchasesList = ref([]);
@@ -1193,6 +1243,7 @@
           expenseForm.value.person_entity = meta.value.employees[0].name;
           penaltyForm.value.employee_name = meta.value.employees[0].name;
           leaveForm.value.employee_name = meta.value.employees[0].name;
+          advanceForm.value.person_entity = meta.value.employees[0].name;
         }
         if (meta.value.categories.length) expenseForm.value.expense_type = meta.value.categories[0];
         if (meta.value.purchase_categories.length) purchaseForm.value.category = meta.value.purchase_categories[0];
@@ -1218,7 +1269,8 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(b)
         });
-        loadDayData();
+        const resSummary = await fetch(`/api/day-summary?date_str=${shiftDate.value}`);
+        daySummary.value = await resSummary.json();
       };
 
       const openWalkInModal = () => {
@@ -1244,7 +1296,6 @@
         }
       };
 
-      // Real Excel Upload & Parse (Client-side)
       const handleExcelUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1368,6 +1419,41 @@
         }
       };
 
+      // Advances & Loans Modal Management
+      const openAdvanceModal = () => {
+        advanceForm.value = {
+          person_entity: meta.value.employees[0]?.name || '',
+          expense_type: 'سلفة',
+          amount: null,
+          advance_date: shiftDate.value,
+          branch: 'عام',
+          notes: ''
+        };
+        showAdvanceModal.value = true;
+      };
+
+      const saveAdvance = async () => {
+        if (!advanceForm.value.amount || advanceForm.value.amount <= 0) return alert('اكتب مبلغ السلفة');
+        if (!advanceForm.value.person_entity) return alert('اختر الموظف');
+
+        await fetch('/api/expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            branch: advanceForm.value.branch,
+            person_entity: advanceForm.value.person_entity,
+            expense_type: advanceForm.value.expense_type,
+            amount: advanceForm.value.amount,
+            expense_date: advanceForm.value.advance_date,
+            description: advanceForm.value.notes
+          })
+        });
+
+        alert(`✅ تم تسجيل ${advanceForm.value.expense_type} بقيمة ${formatNum(advanceForm.value.amount)} ج.م بنجاح!`);
+        showAdvanceModal.value = false;
+        loadPayroll();
+      };
+
       // Purchases & Admin Exp
       const loadPurchases = async () => {
         const res = await fetch('/api/purchases');
@@ -1411,7 +1497,7 @@
         }
       };
 
-      // Advances & Payroll
+      // Payroll
       const loadPayroll = async () => {
         const res = await fetch(`/api/payroll-overview?start_date=${reportStart.value}&end_date=${reportEnd.value}`);
         payrollData.value = await res.json();
@@ -1435,7 +1521,7 @@
         loadPayroll();
       };
 
-      // One-Click WhatsApp Slip
+      // WhatsApp Slip
       const sendWhatsAppSlip = (p) => {
         const net = p.net_salary + (p.bonus || 0);
         const msg = `💼 *شركة كاتشي - مفردات راتب شهر ${shiftDate.value.slice(0, 7)}*
@@ -1507,6 +1593,7 @@
         expensesList, showExpenseModal, expenseForm, showEditTreasuryModal, editOpeningTr, editTransferTr,
         penaltiesList, showPenaltyModal, penaltyForm,
         leavesList, showLeaveModal, leaveForm,
+        showAdvanceModal, advanceForm, openAdvanceModal, saveAdvance,
         purchasesList, showPurchaseModal, purchaseForm,
         adminExpList, showAdminExpModal, adminExpForm,
         payrollData, reportStart, reportEnd, companyBI,
