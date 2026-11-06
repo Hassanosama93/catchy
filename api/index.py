@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, Date, Enum, Numeric, DateTime, func
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
-# 1. الاتصال بقاعدة البيانات
+# ==================== 1. الاتصال بقاعدة البيانات ====================
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -26,7 +26,7 @@ if DATABASE_URL:
 
 Base = declarative_base()
 
-# 2. القوائم الثابتة
+# ==================== 2. القوائم الثابتة ====================
 class ExpenseSource(str, enum.Enum):
     inside = "الداخل"
     cash_treasury = "عهدة Cash"
@@ -46,7 +46,7 @@ class MovementType(str, enum.Enum):
     addition = "إضافة"
     withdrawal = "سحب"
 
-# 3. جداول قاعدة البيانات
+# ==================== 3. جداول قاعدة البيانات ====================
 class BusinessDay(Base):
     __tablename__ = 'business_days'
     id = Column(Integer, primary_key=True)
@@ -154,7 +154,7 @@ class Settlement(Base):
     settlement_date = Column(Date, nullable=False)
     notes = Column(String, nullable=True)
 
-# 4. إعداد السيرفر
+# ==================== 4. إعداد السيرفر والوظائف المساعدة ====================
 app = FastAPI(title="Catchy Finance API")
 app.add_middleware(
     CORSMiddleware,
@@ -165,7 +165,7 @@ app.add_middleware(
 )
 
 def ensure_tables():
-    """إنشاء الجداول في Neon بأمان عند أول استدعاء"""
+    """إنشاء الجداول في قاعدة البيانات بأمان"""
     if engine:
         try:
             Base.metadata.create_all(bind=engine)
@@ -174,7 +174,7 @@ def ensure_tables():
 
 def get_db():
     if not SessionLocal:
-        raise HTTPException(status_code=500, detail="DATABASE_URL not configured properly in Vercel")
+        raise HTTPException(status_code=500, detail="DATABASE_URL not configured properly")
     ensure_tables()
     db = SessionLocal()
     try:
@@ -182,10 +182,21 @@ def get_db():
     finally:
         db.close()
 
-# Pydantic Schemas
+def normalize_branch(branch_name: Optional[str]) -> str:
+    """توحيد اسم الفرع وتنظيف المسافات واختلافات الياء والألف اللينة"""
+    if not branch_name:
+        return "الشروق"
+    b = str(branch_name).strip()
+    if "مدينت" in b:
+        return "مدينتي"
+    if "شروق" in b:
+        return "الشروق"
+    return b
+
+# ==================== 5. Pydantic Schemas ====================
 class OrderIn(BaseModel):
     booking_date: str
-    branch: Optional[str] = "الشروق"
+    branch: Optional[str] = None
     customer_name: str
     customer_phone: Optional[str] = ""
     assigned_employee: Optional[str] = ""
@@ -199,7 +210,7 @@ class OrderIn(BaseModel):
 
 class BulkOrdersIn(BaseModel):
     booking_date: str
-    branch: Optional[str] = "الشروق"
+    branch: Optional[str] = None
     orders: List[dict]
 
 class ExpenseIn(BaseModel):
@@ -249,7 +260,7 @@ class UpdateTreasuryIn(BaseModel):
     opening_treasury: float
     transfer_treasury: float
 
-# ==================== ENDPOINTS ====================
+# ==================== 6. الـ API Endpoints ====================
 
 @app.get("/api/meta")
 def get_meta(db: Session = Depends(get_db)):
@@ -336,8 +347,11 @@ def update_treasury(payload: UpdateTreasuryIn, db: Session = Depends(get_db)):
 def get_bookings(date_str: str, branch: Optional[str] = None, db: Session = Depends(get_db)):
     t_d = datetime.strptime(date_str, "%Y-%m-%d").date()
     q = db.query(Order).filter(Order.booking_date == t_d)
-    if branch and branch != "الكل":
-        q = q.filter(Order.branch == branch)
+    
+    if branch and branch not in ["الكل", "all", "ALL", ""]:
+        clean_branch = normalize_branch(branch)
+        q = q.filter(Order.branch == clean_branch)
+        
     orders = q.all()
     return [{
         "id": o.id,
@@ -366,13 +380,15 @@ def add_booking(payload: OrderIn, db: Session = Depends(get_db)):
         db.refresh(day)
         
     pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
+    final_branch = normalize_branch(payload.branch)
+
     o = Order(
         business_day_id=day.id,
         booking_date=t_d,
-        branch=payload.branch or "الشروق",
-        customer_name=payload.customer_name,
+        branch=final_branch,
+        customer_name=payload.customer_name.strip(),
         customer_phone=payload.customer_phone,
-        assigned_employee=payload.assigned_employee,
+        assigned_employee=(payload.assigned_employee or "").strip(),
         wash_type=payload.wash_type,
         is_subscription=payload.is_subscription,
         price=payload.price,
@@ -397,26 +413,43 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
 
     new_orders = []
     for item in payload.orders:
-        c_name = str(item.get("customer_name") or item.get("اسم العميل") or "").strip()
-        if not c_name: continue
-        c_phone = str(item.get("customer_phone") or item.get("الهاتف") or item.get("تليفون") or "").strip()
-        w_type = str(item.get("wash_type") or item.get("نوع الغسلة") or "غسلة عادية").strip()
+        c_name = str(item.get("customer_name") or item.get("اسم العميل") or item.get("العميل") or "").strip()
+        if not c_name: 
+            continue
+            
+        c_phone = str(item.get("customer_phone") or item.get("الهاتف") or item.get("تليفون") or item.get("رقم التليفون") or item.get("الموبايل") or "").strip()
+        w_type = str(item.get("wash_type") or item.get("نوع الغسلة") or item.get("الخدمة") or item.get("نوع الخدمة") or "غسلة عادية").strip()
         is_sub = ("اشتراك" in w_type) or bool(item.get("is_subscription"))
+        
+        # قراءة الفرع من صف الشيت مع دعم جميع التسميات
+        row_branch_raw = item.get("branch") or item.get("الفرع") or payload.branch
+        row_branch = normalize_branch(row_branch_raw)
+
+        # قراءة اسم الموظف تلقائياً من الشيت بجميع المسميات الممكنة
+        emp_name = str(
+            item.get("assigned_employee")
+            or item.get("اسم الموظف")
+            or item.get("الموظف")
+            or item.get("الكابتن")
+            or item.get("العامل")
+            or item.get("employee")
+            or ""
+        ).strip()
         
         o = Order(
             business_day_id=day.id,
             booking_date=t_d,
-            branch=payload.branch or item.get("branch") or "الشروق",
+            branch=row_branch,
             customer_name=c_name,
             customer_phone=c_phone,
-            assigned_employee=item.get("assigned_employee") or "",
+            assigned_employee=emp_name,
             wash_type=w_type,
             is_subscription=is_sub,
-            price=float(item.get("price") or 0),
+            price=float(item.get("price") or item.get("السعر") or item.get("المبلغ") or 0),
             payment_method=PaymentMethod.none,
             status="pending",
             is_collected=False,
-            notes=str(item.get("notes") or "")
+            notes=str(item.get("notes") or item.get("ملاحظات") or "")
         )
         new_orders.append(o)
 
@@ -428,12 +461,14 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
 @app.put("/api/bookings/{order_id}")
 def update_booking(order_id: int, payload: OrderIn, db: Session = Depends(get_db)):
     o = db.query(Order).get(order_id)
-    if not o: raise HTTPException(status_code=404)
+    if not o: 
+        raise HTTPException(status_code=404)
+        
     pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
-    o.branch = payload.branch
-    o.customer_name = payload.customer_name
+    o.branch = normalize_branch(payload.branch)
+    o.customer_name = payload.customer_name.strip()
     o.customer_phone = payload.customer_phone
-    o.assigned_employee = payload.assigned_employee
+    o.assigned_employee = (payload.assigned_employee or "").strip()
     o.wash_type = payload.wash_type
     o.is_subscription = payload.is_subscription
     o.price = payload.price
@@ -466,7 +501,15 @@ def add_expense(payload: ExpenseIn, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(day)
         
-    db.add(Expense(business_day_id=day.id, expense_date=t_d, branch=payload.branch or "عام", person_entity=payload.person_entity, expense_type=payload.expense_type, amount=payload.amount, description=payload.description))
+    db.add(Expense(
+        business_day_id=day.id, 
+        expense_date=t_d, 
+        branch=payload.branch or "عام", 
+        person_entity=payload.person_entity, 
+        expense_type=payload.expense_type, 
+        amount=payload.amount, 
+        description=payload.description
+    ))
     db.commit()
     return {"status": "ok"}
 
@@ -508,7 +551,14 @@ def get_purchases(date_str: Optional[str] = None, db: Session = Depends(get_db))
 @app.post("/api/purchases")
 def add_purchase(payload: PurchaseIn, db: Session = Depends(get_db)):
     t_d = datetime.strptime(payload.purchase_date, "%Y-%m-%d").date()
-    db.add(Purchase(purchase_date=t_d, branch=payload.branch or "عام", category=payload.category, amount=payload.amount, source=payload.source or "العهدة المجمعة", description=payload.description))
+    db.add(Purchase(
+        purchase_date=t_d, 
+        branch=payload.branch or "عام", 
+        category=payload.category, 
+        amount=payload.amount, 
+        source=payload.source or "العهدة المجمعة", 
+        description=payload.description
+    ))
     db.commit()
     return {"status": "ok"}
 
@@ -526,7 +576,13 @@ def get_admin_expenses(db: Session = Depends(get_db)):
 @app.post("/api/admin-expenses")
 def add_admin_expense(payload: AdminExpenseIn, db: Session = Depends(get_db)):
     t_d = datetime.strptime(payload.expense_date, "%Y-%m-%d").date()
-    db.add(AdminExpense(expense_date=t_d, category=payload.category, amount=payload.amount, payment_method=payload.payment_method, description=payload.description))
+    db.add(AdminExpense(
+        expense_date=t_d, 
+        category=payload.category, 
+        amount=payload.amount, 
+        payment_method=payload.payment_method, 
+        description=payload.description
+    ))
     db.commit()
     return {"status": "ok"}
 
@@ -555,7 +611,9 @@ def delete_leave(leave_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/payroll-overview")
 def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(get_db)):
-    s_d, e_d = datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.strptime(end_date, "%Y-%m-%d").date()
+    s_d = datetime.strptime(start_date, "%Y-%m-%d").date()
+    e_d = datetime.strptime(end_date, "%Y-%m-%d").date()
+    
     employees = db.query(Employee).filter(Employee.is_active == True).all()
     expenses = db.query(Expense).filter(Expense.expense_date >= s_d, Expense.expense_date <= e_d).all()
     penalties = db.query(Penalty).filter(Penalty.penalty_date >= s_d, Penalty.penalty_date <= e_d).all()
@@ -588,15 +646,27 @@ def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(g
         emp_history = [{"date": e.expense_date.strftime("%Y-%m-%d"), "amount": int(e.amount), "type": e.expense_type, "notes": e.description or ""} for e in expenses if e.person_entity == emp.name and ("سلف" in e.expense_type or "سحوبات" in e.expense_type)]
 
         advances_overview.append({
-            "name": emp.name, "basic_salary": int(b_salary), "monthly_draws": int(emp_draws),
-            "loan_installment": int(this_month_settled), "total_monthly_commitment": int(total_deductions_this_month),
-            "total_loan_debt": int(current_loan_debt), "draw_ratio": int(draw_ratio), "status_color": status_color, "history": emp_history
+            "name": emp.name, 
+            "basic_salary": int(b_salary), 
+            "monthly_draws": int(emp_draws),
+            "loan_installment": int(this_month_settled), 
+            "total_monthly_commitment": int(total_deductions_this_month),
+            "total_loan_debt": int(current_loan_debt), 
+            "draw_ratio": int(draw_ratio), 
+            "status_color": status_color, 
+            "history": emp_history
         })
 
         payroll_table.append({
-            "name": emp.name, "basic_salary": int(b_salary), "draws": int(emp_draws), "loan_installment": int(this_month_settled),
-            "penalties": int(emp_penalties), "unpaid_days": unpaid_days, "unpaid_deduction": int(unpaid_deduction),
-            "total_deductions": int(total_deductions_this_month), "net_salary": int(net_salary)
+            "name": emp.name, 
+            "basic_salary": int(b_salary), 
+            "draws": int(emp_draws), 
+            "loan_installment": int(this_month_settled),
+            "penalties": int(emp_penalties), 
+            "unpaid_days": unpaid_days, 
+            "unpaid_deduction": int(unpaid_deduction),
+            "total_deductions": int(total_deductions_this_month), 
+            "net_salary": int(net_salary)
         })
 
     return {"advances_overview": advances_overview, "payroll_table": payroll_table}
@@ -616,7 +686,9 @@ def delete_settlement(item_id: int, db: Session = Depends(get_db)):
 
 @app.get("/api/company-bi")
 def get_company_bi(start_date: str, end_date: str, db: Session = Depends(get_db)):
-    s_d, e_d = datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.strptime(end_date, "%Y-%m-%d").date()
+    s_d = datetime.strptime(start_date, "%Y-%m-%d").date()
+    e_d = datetime.strptime(end_date, "%Y-%m-%d").date()
+    
     orders = db.query(Order).filter(Order.booking_date >= s_d, Order.booking_date <= e_d, Order.status == "done", Order.is_collected == True).all()
     cash_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
     insta_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.insta])
@@ -629,7 +701,8 @@ def get_company_bi(start_date: str, end_date: str, db: Session = Depends(get_db)
     opex_items = [e for e in expenses if e.expense_type not in ["سحوبات من المرتب", "سلفة"]]
     total_opex = sum([float(e.amount) for e in opex_items])
     opex_breakdown = {}
-    for e in opex_items: opex_breakdown[e.expense_type] = opex_breakdown.get(e.expense_type, 0) + int(e.amount)
+    for e in opex_items: 
+        opex_breakdown[e.expense_type] = opex_breakdown.get(e.expense_type, 0) + int(e.amount)
 
     purchases = db.query(Purchase).filter(Purchase.purchase_date >= s_d, Purchase.purchase_date <= e_d).all()
     total_purchases = sum([float(p.amount) for p in purchases])
@@ -647,11 +720,20 @@ def get_company_bi(start_date: str, end_date: str, db: Session = Depends(get_db)
 
     return {
         "kpis": {
-            "total_revenue": int(total_rev), "cash_revenue": int(cash_rev), "insta_revenue": int(insta_rev),
-            "shorouk_revenue": int(shorouk_rev), "madinaty_revenue": int(madinaty_rev), "total_washes": total_washes,
-            "total_opex": int(total_opex), "total_purchases": int(total_purchases), "total_admin": int(total_admin),
-            "total_salaries": int(total_salaries_base), "gross_profit": int(gross_operating_profit),
-            "net_profit": int(net_company_profit), "cost_per_wash": cost_per_wash, "profit_per_wash": profit_per_wash,
+            "total_revenue": int(total_rev), 
+            "cash_revenue": int(cash_rev), 
+            "insta_revenue": int(insta_rev),
+            "shorouk_revenue": int(shorouk_rev), 
+            "madinaty_revenue": int(madinaty_rev), 
+            "total_washes": total_washes,
+            "total_opex": int(total_opex), 
+            "total_purchases": int(total_purchases), 
+            "total_admin": int(total_admin),
+            "total_salaries": int(total_salaries_base), 
+            "gross_profit": int(gross_operating_profit),
+            "net_profit": int(net_company_profit), 
+            "cost_per_wash": cost_per_wash, 
+            "profit_per_wash": profit_per_wash,
             "payroll_ratio": payroll_ratio
         },
         "opex_breakdown": [{"category": k, "amount": v} for k, v in sorted(opex_breakdown.items(), key=lambda x: x[1], reverse=True)]
@@ -659,26 +741,34 @@ def get_company_bi(start_date: str, end_date: str, db: Session = Depends(get_db)
 
 @app.post("/api/employees")
 def add_employee(name: str, salary: float = 0.0, db: Session = Depends(get_db)):
-    if name.strip(): db.add(Employee(name=name.strip(), basic_salary=salary)); db.commit()
+    if name.strip(): 
+        db.add(Employee(name=name.strip(), basic_salary=salary))
+        db.commit()
     return {"status": "ok"}
 
 @app.put("/api/employees/{emp_id}")
 def update_emp_salary(emp_id: int, salary: float, db: Session = Depends(get_db)):
     emp = db.query(Employee).get(emp_id)
-    if emp: emp.basic_salary = salary; db.commit()
+    if emp: 
+        emp.basic_salary = salary
+        db.commit()
     return {"status": "ok"}
 
 @app.delete("/api/employees/{emp_id}")
 def delete_employee(emp_id: int, db: Session = Depends(get_db)):
-    db.query(Employee).filter(Employee.id == emp_id).delete(); db.commit()
+    db.query(Employee).filter(Employee.id == emp_id).delete()
+    db.commit()
     return {"status": "ok"}
 
 @app.post("/api/categories")
 def add_category(name: str, db: Session = Depends(get_db)):
-    if name.strip(): db.add(ExpenseCategory(name=name.strip())); db.commit()
+    if name.strip(): 
+        db.add(ExpenseCategory(name=name.strip()))
+        db.commit()
     return {"status": "ok"}
 
 @app.delete("/api/categories")
 def delete_category(name: str, db: Session = Depends(get_db)):
-    db.query(ExpenseCategory).filter(ExpenseCategory.name == name).delete(); db.commit()
+    db.query(ExpenseCategory).filter(ExpenseCategory.name == name).delete()
+    db.commit()
     return {"status": "ok"}
