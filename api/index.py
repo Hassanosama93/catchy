@@ -216,7 +216,6 @@ class OrderIn(BaseModel):
     is_collected: Optional[bool] = False
     notes: Optional[str] = ""
 
-# نموذج مخصص للتعديل الجزئي لحل مشكلة الارتداد بعد ثانية
 class OrderUpdateIn(BaseModel):
     booking_date: Optional[str] = None
     branch: Optional[str] = None
@@ -375,7 +374,8 @@ def get_bookings(date_str: str, branch: Optional[str] = None, db: Session = Depe
         clean_branch = normalize_branch(branch)
         q = q.filter(Order.branch == clean_branch)
         
-    orders = q.all()
+    # الترتيب الثابت بناءً على id تصاعدياً ليظل الحجز في مكانه تماماً عند التعديل
+    orders = q.order_by(Order.id.asc()).all()
     return [{
         "id": o.id,
         "date": o.booking_date.strftime("%Y-%m-%d"),
@@ -441,14 +441,12 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(day)
 
-    # جلب جميع الموظفين المسجلين
     existing_emps = {e.name: e for e in db.query(Employee).all()}
     new_orders = []
 
     for item in payload.orders:
         clean_item = {str(k).strip(): v for k, v in item.items() if v is not None}
 
-        # العميل
         c_name = str(clean_item.get("customer_name") or clean_item.get("اسم العميل") or clean_item.get("العميل") or "").strip()
         if not c_name: 
             continue
@@ -457,11 +455,9 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
         w_type = str(clean_item.get("wash_type") or clean_item.get("نوع الغسلة") or clean_item.get("الخدمة") or clean_item.get("نوع الخدمة") or "غسلة عادية").strip()
         is_sub = ("اشتراك" in w_type) or bool(clean_item.get("is_subscription"))
         
-        # الفرع
         row_branch_raw = clean_item.get("branch") or clean_item.get("الفرع") or payload.branch
         row_branch = normalize_branch(row_branch_raw)
 
-        # استخراج اسم الموظف بمرونة فائقة
         emp_name = str(
             clean_item.get("assigned_employee")
             or clean_item.get("اسم الموظف")
@@ -476,14 +472,12 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
             or ""
         ).strip()
 
-        # لو الموظف غير مسجل بالنظام يتم تسجيله فوراً لتتعرف عليه القائمة بالواجهة تلقائياً
         if emp_name and emp_name not in existing_emps:
             new_emp = Employee(name=emp_name, basic_salary=0.0, is_active=True)
             db.add(new_emp)
             db.commit()
             existing_emps[emp_name] = new_emp
 
-        # طريقة الدفع في حال وجدت بالشيت
         pm_raw = clean_item.get("payment_method") or clean_item.get("طريقة الدفع") or clean_item.get("الدفع")
         pm = parse_pm(pm_raw)
 
@@ -515,7 +509,6 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
         db.commit()
     return {"status": "ok", "count": len(new_orders)}
 
-# تم تصليح الـ PUT بحيث يقبل أي تعديل جزئي ولا يرتد في الواجهة أبداً
 @app.put("/api/bookings/{order_id}")
 def update_booking(order_id: int, payload: OrderUpdateIn, db: Session = Depends(get_db)):
     o = db.query(Order).get(order_id)
@@ -532,7 +525,6 @@ def update_booking(order_id: int, payload: OrderUpdateIn, db: Session = Depends(
         emp_clean = payload.assigned_employee.strip()
         o.assigned_employee = emp_clean
         if emp_clean:
-            # التأكد من وجود الموظف في النظام
             exist = db.query(Employee).filter(Employee.name == emp_clean).first()
             if not exist:
                 db.add(Employee(name=emp_clean, basic_salary=0.0, is_active=True))
