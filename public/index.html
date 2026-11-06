@@ -41,8 +41,8 @@
 
 <div id="app" class="max-w-6xl mx-auto px-3 sm:px-6 py-4">
 
-  <!-- ================= TOP HEADER (WHITE & ORANGE) ================= -->
-  <header class="no-print bg-white border border-slate-200 shadow-sm px-4 py-3 rounded-2xl mb-4 flex items-center justify-between">
+  <!-- ================= TOP HEADER WITH INTERACTIVE DATE PICKER ================= -->
+  <header class="no-print bg-white border border-slate-200 shadow-sm px-4 py-3 rounded-2xl mb-4 flex items-center justify-between flex-wrap gap-2">
     <div class="flex items-center gap-3">
       <div class="w-11 h-11 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600 font-black text-xl shadow-inner">
         CF
@@ -52,10 +52,26 @@
         <p class="text-xs text-slate-500 font-medium">نظام التشغيل والمحاسبة المركزي</p>
       </div>
     </div>
-    <div class="flex items-center gap-2">
-      <span class="text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl">
-        📅 {{ shiftDate }}
-      </span>
+    
+    <!-- محدد التاريخ التفاعلي في أعلى الصفحة -->
+    <div class="flex items-center gap-1.5 bg-slate-100 border border-slate-200 p-1 rounded-2xl shadow-inner">
+      <button @click="changeDayOffset(-1)" title="اليوم السابق" class="w-7 h-7 flex items-center justify-center rounded-xl bg-white text-slate-700 hover:text-orange-600 hover:bg-orange-50 font-black text-xs shadow-sm transition">
+        ◀
+      </button>
+      
+      <div class="flex items-center gap-1 px-2">
+        <span class="text-xs">📅</span>
+        <input 
+          type="date" 
+          v-model="shiftDate" 
+          @change="onHeaderDateChange" 
+          class="bg-transparent text-xs font-black text-slate-800 outline-none cursor-pointer"
+        >
+      </div>
+
+      <button @click="changeDayOffset(1)" title="اليوم التالي" class="w-7 h-7 flex items-center justify-center rounded-xl bg-white text-slate-700 hover:text-orange-600 hover:bg-orange-50 font-black text-xs shadow-sm transition">
+        ▶
+      </button>
     </div>
   </header>
 
@@ -134,8 +150,7 @@
       </div>
 
       <!-- Filters & Instant Search -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-        <input type="date" v-model="shiftDate" @change="loadDayData" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
         <select v-model="filterBookingBranch" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none">
           <option value="الكل">📍 كل الفروع</option>
           <option value="الشروق">فرع الشروق</option>
@@ -195,18 +210,15 @@
                   {{ b.wash_type }}
                 </span>
               </td>
-              <!-- Assigned Employee Dropdown -->
               <td class="py-2.5 px-3">
                 <select v-model="b.assigned_employee" @change="quickUpdateBooking(b)" class="bg-white/80 border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-semibold outline-none">
                   <option value="">-- اختر موظف --</option>
                   <option v-for="emp in meta.employees" :key="emp.name" :value="emp.name">{{ emp.name }}</option>
                 </select>
               </td>
-              <!-- Price Input -->
               <td class="py-2.5 px-3">
                 <input type="number" v-model.number="b.price" @change="quickUpdateBooking(b)" class="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-900 outline-none">
               </td>
-              <!-- Payment Method Dropdown -->
               <td class="py-2.5 px-3">
                 <select v-model="b.payment_method" @change="quickUpdateBooking(b)" class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold outline-none">
                   <option value="None">None</option>
@@ -214,7 +226,6 @@
                   <option value="Insta">Insta</option>
                 </select>
               </td>
-              <!-- Status Dropdown (pending / done / cancel) -->
               <td class="py-2.5 px-3">
                 <select v-model="b.status" @change="quickUpdateBooking(b)" class="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold outline-none">
                   <option value="pending">انتظار</option>
@@ -222,11 +233,9 @@
                   <option value="cancel">ملغي (Cancel)</option>
                 </select>
               </td>
-              <!-- Collected Checkbox (The Gatekeeper!) -->
               <td class="py-2.5 px-3 text-center">
                 <input type="checkbox" v-model="b.is_collected" @change="quickUpdateBooking(b)" class="w-4 h-4 rounded text-orange-600 cursor-pointer">
               </td>
-              <!-- Editable Notes Column -->
               <td class="py-2.5 px-3">
                 <input type="text" v-model="b.notes" @change="quickUpdateBooking(b)" placeholder="اكتب ملاحظة..." class="w-28 sm:w-36 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-800 outline-none focus:border-orange-500">
               </td>
@@ -243,9 +252,9 @@
 
   <!-- ================= 2. TREASURY & EXPENSES (العهدة والمصروفات) ================= -->
   <div v-if="!loading && activeTab === 'treasury'" class="space-y-4">
-    <!-- 4 Top KPI Cards (The Unified Treasury Flow) -->
+    <!-- 4 Top KPI Cards -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-      <!-- 1. عهدة بداية اليوم (ترحيل آلي من الأمس) -->
+      <!-- 1. عهدة بداية اليوم (ترحيل آلي من متبقي الأمس) -->
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center relative overflow-hidden">
         <div class="flex items-center justify-between mb-1">
           <span class="text-[11px] text-slate-500 font-bold">1. عهدة بداية اليوم</span>
@@ -263,7 +272,7 @@
         </div>
       </div>
 
-      <!-- 2. كاش اليوم المحصل (Live from Bookings) -->
+      <!-- 2. كاش اليوم المحصل -->
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center">
         <span class="text-[11px] text-slate-500 font-bold block mb-1">2. كاش الحجوزات المحصل</span>
         <span class="text-lg font-black text-emerald-600">{{ formatNum(daySummary?.day?.cash_collected) }}</span>
@@ -1201,6 +1210,19 @@
         });
       });
 
+      // Header Date Switchers
+      const changeDayOffset = (days) => {
+        const d = new Date(shiftDate.value);
+        d.setDate(d.getDate() + days);
+        shiftDate.value = d.toISOString().split('T')[0];
+        onHeaderDateChange();
+      };
+
+      const onHeaderDateChange = () => {
+        loadDayData();
+        if (activeTab.value === 'treasury') loadTreasury();
+      };
+
       const setDatePreset = (p) => {
         const d = new Date();
         if (p === 'this_month') {
@@ -1610,6 +1632,7 @@
         payrollData, reportStart, reportEnd, companyBI,
         newEmpName, newEmpSalary, newCatName,
         formatNum, tabClass, bookingRowClass, riskBadgeClass, progressBarClass, setDatePreset, exportPDF, exportToExcel, switchTab,
+        changeDayOffset, onHeaderDateChange,
         loadDayData, quickUpdateBooking, openWalkInModal, saveWalkIn, deleteBooking, handleExcelUpload,
         loadTreasury, saveTreasuryBalances, openExpenseModal, saveExpense, deleteExpense,
         loadPenalties, openPenaltyModal, savePenalty, deletePenalty,
