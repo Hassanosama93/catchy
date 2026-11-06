@@ -2,7 +2,7 @@ import os
 import enum
 import traceback
 from datetime import date, datetime, timedelta
-from typing import Optional, List
+from typing import Optional, List, Any
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -154,7 +154,7 @@ class Settlement(Base):
     settlement_date = Column(Date, nullable=False)
     notes = Column(String, nullable=True)
 
-# ==================== 4. إعداد السيرفر والوظائف المساعدة ====================
+# ==================== 4. إعداد السيرفر ودوال المساعدة ====================
 app = FastAPI(title="Catchy Finance API")
 app.add_middleware(
     CORSMiddleware,
@@ -165,7 +165,6 @@ app.add_middleware(
 )
 
 def ensure_tables():
-    """إنشاء الجداول في قاعدة البيانات بأمان"""
     if engine:
         try:
             Base.metadata.create_all(bind=engine)
@@ -183,7 +182,6 @@ def get_db():
         db.close()
 
 def normalize_branch(branch_name: Optional[str]) -> str:
-    """توحيد اسم الفرع وتنظيف المسافات واختلافات الياء والألف اللينة"""
     if not branch_name:
         return "الشروق"
     b = str(branch_name).strip()
@@ -193,6 +191,16 @@ def normalize_branch(branch_name: Optional[str]) -> str:
         return "الشروق"
     return b
 
+def parse_pm(pm_val: Optional[str]) -> PaymentMethod:
+    if not pm_val:
+        return PaymentMethod.none
+    val = str(pm_val).strip().lower()
+    if val in ["cash", "كاش", "نقدي"]:
+        return PaymentMethod.cash
+    elif val in ["insta", "انستا", "انستاباي", "instapay"]:
+        return PaymentMethod.insta
+    return PaymentMethod.none
+
 # ==================== 5. Pydantic Schemas ====================
 class OrderIn(BaseModel):
     booking_date: str
@@ -201,12 +209,27 @@ class OrderIn(BaseModel):
     customer_phone: Optional[str] = ""
     assigned_employee: Optional[str] = ""
     wash_type: Optional[str] = "غسلة عادية"
-    is_subscription: bool = False
-    price: float = 0.0
-    payment_method: str = "None"
+    is_subscription: Optional[bool] = False
+    price: Optional[float] = 0.0
+    payment_method: Optional[str] = "None"
     status: Optional[str] = "pending"
-    is_collected: bool = False
+    is_collected: Optional[bool] = False
     notes: Optional[str] = ""
+
+# نموذج مخصص للتعديل الجزئي لحل مشكلة الارتداد بعد ثانية
+class OrderUpdateIn(BaseModel):
+    booking_date: Optional[str] = None
+    branch: Optional[str] = None
+    customer_name: Optional[str] = None
+    customer_phone: Optional[str] = None
+    assigned_employee: Optional[str] = None
+    wash_type: Optional[str] = None
+    is_subscription: Optional[bool] = None
+    price: Optional[float] = None
+    payment_method: Optional[str] = None
+    status: Optional[str] = None
+    is_collected: Optional[bool] = None
+    notes: Optional[str] = None
 
 class BulkOrdersIn(BaseModel):
     booking_date: str
@@ -260,7 +283,7 @@ class UpdateTreasuryIn(BaseModel):
     opening_treasury: float
     transfer_treasury: float
 
-# ==================== 6. الـ API Endpoints ====================
+# ==================== 6. ENDPOINTS ====================
 
 @app.get("/api/meta")
 def get_meta(db: Session = Depends(get_db)):
@@ -363,7 +386,7 @@ def get_bookings(date_str: str, branch: Optional[str] = None, db: Session = Depe
         "wash_type": o.wash_type,
         "is_subscription": o.is_subscription,
         "price": int(o.price),
-        "payment_method": o.payment_method.value,
+        "payment_method": o.payment_method.value if o.payment_method else "None",
         "status": o.status,
         "is_collected": o.is_collected,
         "notes": o.notes or ""
@@ -379,8 +402,15 @@ def add_booking(payload: OrderIn, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(day)
         
-    pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
+    pm = parse_pm(payload.payment_method)
     final_branch = normalize_branch(payload.branch)
+
+    emp_name = (payload.assigned_employee or "").strip()
+    if emp_name:
+        existing_emp = db.query(Employee).filter(Employee.name == emp_name).first()
+        if not existing_emp:
+            db.add(Employee(name=emp_name, basic_salary=0.0, is_active=True))
+            db.commit()
 
     o = Order(
         business_day_id=day.id,
@@ -388,7 +418,7 @@ def add_booking(payload: OrderIn, db: Session = Depends(get_db)):
         branch=final_branch,
         customer_name=payload.customer_name.strip(),
         customer_phone=payload.customer_phone,
-        assigned_employee=(payload.assigned_employee or "").strip(),
+        assigned_employee=emp_name,
         wash_type=payload.wash_type,
         is_subscription=payload.is_subscription,
         price=payload.price,
@@ -411,30 +441,57 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(day)
 
+    # جلب جميع الموظفين المسجلين
+    existing_emps = {e.name: e for e in db.query(Employee).all()}
     new_orders = []
+
     for item in payload.orders:
-        c_name = str(item.get("customer_name") or item.get("اسم العميل") or item.get("العميل") or "").strip()
+        clean_item = {str(k).strip(): v for k, v in item.items() if v is not None}
+
+        # العميل
+        c_name = str(clean_item.get("customer_name") or clean_item.get("اسم العميل") or clean_item.get("العميل") or "").strip()
         if not c_name: 
             continue
             
-        c_phone = str(item.get("customer_phone") or item.get("الهاتف") or item.get("تليفون") or item.get("رقم التليفون") or item.get("الموبايل") or "").strip()
-        w_type = str(item.get("wash_type") or item.get("نوع الغسلة") or item.get("الخدمة") or item.get("نوع الخدمة") or "غسلة عادية").strip()
-        is_sub = ("اشتراك" in w_type) or bool(item.get("is_subscription"))
+        c_phone = str(clean_item.get("customer_phone") or clean_item.get("الهاتف") or clean_item.get("تليفون") or clean_item.get("رقم التليفون") or clean_item.get("الموبايل") or "").strip()
+        w_type = str(clean_item.get("wash_type") or clean_item.get("نوع الغسلة") or clean_item.get("الخدمة") or clean_item.get("نوع الخدمة") or "غسلة عادية").strip()
+        is_sub = ("اشتراك" in w_type) or bool(clean_item.get("is_subscription"))
         
-        # قراءة الفرع من صف الشيت مع دعم جميع التسميات
-        row_branch_raw = item.get("branch") or item.get("الفرع") or payload.branch
+        # الفرع
+        row_branch_raw = clean_item.get("branch") or clean_item.get("الفرع") or payload.branch
         row_branch = normalize_branch(row_branch_raw)
 
-        # قراءة اسم الموظف تلقائياً من الشيت بجميع المسميات الممكنة
+        # استخراج اسم الموظف بمرونة فائقة
         emp_name = str(
-            item.get("assigned_employee")
-            or item.get("اسم الموظف")
-            or item.get("الموظف")
-            or item.get("الكابتن")
-            or item.get("العامل")
-            or item.get("employee")
+            clean_item.get("assigned_employee")
+            or clean_item.get("اسم الموظف")
+            or clean_item.get("الموظف")
+            or clean_item.get("الكابتن")
+            or clean_item.get("العامل")
+            or clean_item.get("الفني")
+            or clean_item.get("القائم بالغسيل")
+            or clean_item.get("مسؤول الغسيل")
+            or clean_item.get("مسئول الغسيل")
+            or clean_item.get("employee")
             or ""
         ).strip()
+
+        # لو الموظف غير مسجل بالنظام يتم تسجيله فوراً لتتعرف عليه القائمة بالواجهة تلقائياً
+        if emp_name and emp_name not in existing_emps:
+            new_emp = Employee(name=emp_name, basic_salary=0.0, is_active=True)
+            db.add(new_emp)
+            db.commit()
+            existing_emps[emp_name] = new_emp
+
+        # طريقة الدفع في حال وجدت بالشيت
+        pm_raw = clean_item.get("payment_method") or clean_item.get("طريقة الدفع") or clean_item.get("الدفع")
+        pm = parse_pm(pm_raw)
+
+        price_val = 0.0
+        try:
+            price_val = float(clean_item.get("price") or clean_item.get("السعر") or clean_item.get("المبلغ") or clean_item.get("القيمة") or 0)
+        except:
+            price_val = 0.0
         
         o = Order(
             business_day_id=day.id,
@@ -445,11 +502,11 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
             assigned_employee=emp_name,
             wash_type=w_type,
             is_subscription=is_sub,
-            price=float(item.get("price") or item.get("السعر") or item.get("المبلغ") or 0),
-            payment_method=PaymentMethod.none,
+            price=price_val,
+            payment_method=pm,
             status="pending",
             is_collected=False,
-            notes=str(item.get("notes") or item.get("ملاحظات") or "")
+            notes=str(clean_item.get("notes") or clean_item.get("ملاحظات") or "")
         )
         new_orders.append(o)
 
@@ -458,26 +515,46 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
         db.commit()
     return {"status": "ok", "count": len(new_orders)}
 
+# تم تصليح الـ PUT بحيث يقبل أي تعديل جزئي ولا يرتد في الواجهة أبداً
 @app.put("/api/bookings/{order_id}")
-def update_booking(order_id: int, payload: OrderIn, db: Session = Depends(get_db)):
+def update_booking(order_id: int, payload: OrderUpdateIn, db: Session = Depends(get_db)):
     o = db.query(Order).get(order_id)
     if not o: 
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404, detail="Order not found")
         
-    pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
-    o.branch = normalize_branch(payload.branch)
-    o.customer_name = payload.customer_name.strip()
-    o.customer_phone = payload.customer_phone
-    o.assigned_employee = (payload.assigned_employee or "").strip()
-    o.wash_type = payload.wash_type
-    o.is_subscription = payload.is_subscription
-    o.price = payload.price
-    o.payment_method = pm
-    o.status = payload.status
-    o.is_collected = payload.is_collected
-    o.notes = payload.notes
+    if payload.branch is not None:
+        o.branch = normalize_branch(payload.branch)
+    if payload.customer_name is not None:
+        o.customer_name = payload.customer_name.strip()
+    if payload.customer_phone is not None:
+        o.customer_phone = payload.customer_phone
+    if payload.assigned_employee is not None:
+        emp_clean = payload.assigned_employee.strip()
+        o.assigned_employee = emp_clean
+        if emp_clean:
+            # التأكد من وجود الموظف في النظام
+            exist = db.query(Employee).filter(Employee.name == emp_clean).first()
+            if not exist:
+                db.add(Employee(name=emp_clean, basic_salary=0.0, is_active=True))
+                db.commit()
+    if payload.wash_type is not None:
+        o.wash_type = payload.wash_type
+    if payload.is_subscription is not None:
+        o.is_subscription = payload.is_subscription
+    if payload.price is not None:
+        o.price = payload.price
+    if payload.payment_method is not None:
+        o.payment_method = parse_pm(payload.payment_method)
+    if payload.status is not None:
+        o.status = payload.status
+    if payload.is_collected is not None:
+        o.is_collected = payload.is_collected
+    if payload.notes is not None:
+        o.notes = payload.notes
+
     db.commit()
-    return {"status": "ok"}
+    db.refresh(o)
+    return {"status": "ok", "order_id": o.id}
 
 @app.delete("/api/bookings/{order_id}")
 def delete_booking(order_id: int, db: Session = Depends(get_db)):
@@ -650,7 +727,7 @@ def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(g
             "basic_salary": int(b_salary), 
             "monthly_draws": int(emp_draws),
             "loan_installment": int(this_month_settled), 
-            "total_monthly_commitment": int(total_deductions_this_month),
+            "total_monthly_commitment": int(total_deductions_this_month), 
             "total_loan_debt": int(current_loan_debt), 
             "draw_ratio": int(draw_ratio), 
             "status_color": status_color, 
@@ -661,10 +738,10 @@ def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(g
             "name": emp.name, 
             "basic_salary": int(b_salary), 
             "draws": int(emp_draws), 
-            "loan_installment": int(this_month_settled),
+            "loan_installment": int(this_month_settled), 
             "penalties": int(emp_penalties), 
             "unpaid_days": unpaid_days, 
-            "unpaid_deduction": int(unpaid_deduction),
+            "unpaid_deduction": int(unpaid_deduction), 
             "total_deductions": int(total_deductions_this_month), 
             "net_salary": int(net_salary)
         })
