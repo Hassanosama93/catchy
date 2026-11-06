@@ -6,7 +6,7 @@ from typing import Optional, List, Any
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, Date, Enum, Numeric, DateTime, func
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, Date, Enum, Numeric, DateTime, func, text
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
 # ==================== 1. الاتصال بقاعدة البيانات ====================
@@ -54,6 +54,7 @@ class BusinessDay(Base):
     status = Column(String, default="OPEN")
     opening_treasury = Column(Numeric(10, 2), default=0.00)
     transfer_treasury = Column(Numeric(10, 2), default=0.00)
+    is_manual_opening = Column(Boolean, default=False)
     closed_at = Column(DateTime, nullable=True)
 
 class Employee(Base):
@@ -168,6 +169,12 @@ def ensure_tables():
     if engine:
         try:
             Base.metadata.create_all(bind=engine)
+            try:
+                with engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE business_days ADD COLUMN is_manual_opening BOOLEAN DEFAULT FALSE;"))
+                    conn.commit()
+            except Exception:
+                pass
         except Exception as e:
             print("Auto create tables error:", e)
 
@@ -200,6 +207,23 @@ def parse_pm(pm_val: Optional[str]) -> PaymentMethod:
     elif val in ["insta", "انستا", "انستاباي", "instapay"]:
         return PaymentMethod.insta
     return PaymentMethod.none
+
+def get_day_remaining(day_obj: BusinessDay, db: Session) -> float:
+    if not day_obj:
+        return 0.0
+    t_d = day_obj.business_date
+    orders = db.query(Order).filter(Order.booking_date == t_d).all()
+    collected_orders = [o for o in orders if o.status == "done" and o.is_collected]
+    cash_collected = sum([float(o.price) for o in collected_orders if o.payment_method == PaymentMethod.cash])
+
+    expenses = db.query(Expense).filter(Expense.expense_date == t_d).all()
+    purchases = db.query(Purchase).filter(Purchase.purchase_date == t_d).all()
+    total_expenses = sum([float(e.amount) for e in expenses]) + sum([float(p.amount) for p in purchases])
+
+    opening_tr = float(day_obj.opening_treasury or 0)
+    transfer_tr = float(day_obj.transfer_treasury or 0)
+    total_treasury = opening_tr + cash_collected + transfer_tr
+    return total_treasury - total_expenses
 
 # ==================== 5. Pydantic Schemas ====================
 class OrderIn(BaseModel):
@@ -311,11 +335,28 @@ def get_day_summary(date_str: str, db: Session = Depends(get_db)):
         t_d = datetime.strptime(date_str, "%Y-%m-%d").date()
         day = db.query(BusinessDay).filter(BusinessDay.business_date == t_d).first()
         
+        # البحث عن آخر يوم عمل مسجل قبل هذا اليوم
+        prev_day = db.query(BusinessDay).filter(BusinessDay.business_date < t_d).order_by(BusinessDay.business_date.desc()).first()
+        prev_remaining = get_day_remaining(prev_day, db) if prev_day else 0.0
+
         if not day:
-            day = BusinessDay(business_date=t_d, status="OPEN", opening_treasury=0.0, transfer_treasury=0.0)
+            day = BusinessDay(
+                business_date=t_d, 
+                status="OPEN", 
+                opening_treasury=prev_remaining, 
+                transfer_treasury=0.0,
+                is_manual_opening=False
+            )
             db.add(day)
             db.commit()
             db.refresh(day)
+        else:
+            # إذا لم يتم تحديد العهدة يدوياً بواسطة الإدارة، يتم جلب متبقي الأمس تلقائياً
+            is_manual = getattr(day, 'is_manual_opening', False)
+            if not is_manual and prev_day:
+                day.opening_treasury = prev_remaining
+                db.commit()
+                db.refresh(day)
 
         orders = db.query(Order).filter(Order.booking_date == t_d).all()
         collected_orders = [o for o in orders if o.status == "done" and o.is_collected]
@@ -342,7 +383,8 @@ def get_day_summary(date_str: str, db: Session = Depends(get_db)):
                 "cash_collected": int(cash_collected),
                 "total_treasury": int(total_treasury),
                 "total_expenses": int(total_expenses),
-                "remaining_treasury": int(remaining_treasury)
+                "remaining_treasury": int(remaining_treasury),
+                "is_manual_opening": getattr(day, 'is_manual_opening', False)
             },
             "revenue": {
                 "cash": int(cash_collected),
@@ -362,7 +404,25 @@ def update_treasury(payload: UpdateTreasuryIn, db: Session = Depends(get_db)):
         db.add(day)
     day.opening_treasury = payload.opening_treasury
     day.transfer_treasury = payload.transfer_treasury
+    try:
+        day.is_manual_opening = True
+    except Exception:
+        pass
     db.commit()
+    return {"status": "ok"}
+
+@app.post("/api/reset-opening-treasury")
+def reset_opening_treasury(shift_date: str, db: Session = Depends(get_db)):
+    t_d = datetime.strptime(shift_date, "%Y-%m-%d").date()
+    day = db.query(BusinessDay).filter(BusinessDay.business_date == t_d).first()
+    if day:
+        try:
+            day.is_manual_opening = False
+        except Exception:
+            pass
+        prev_day = db.query(BusinessDay).filter(BusinessDay.business_date < t_d).order_by(BusinessDay.business_date.desc()).first()
+        day.opening_treasury = get_day_remaining(prev_day, db) if prev_day else 0.0
+        db.commit()
     return {"status": "ok"}
 
 @app.get("/api/bookings")
@@ -374,7 +434,6 @@ def get_bookings(date_str: str, branch: Optional[str] = None, db: Session = Depe
         clean_branch = normalize_branch(branch)
         q = q.filter(Order.branch == clean_branch)
         
-    # الترتيب الثابت بناءً على id تصاعدياً ليظل الحجز في مكانه تماماً عند التعديل
     orders = q.order_by(Order.id.asc()).all()
     return [{
         "id": o.id,
