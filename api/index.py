@@ -1,13 +1,14 @@
 import os
 import enum
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, Date, Enum, Numeric, DateTime, func
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
+# 1. الاتصال بقاعدة البيانات
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -16,7 +17,7 @@ engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300) if DA
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
 Base = declarative_base()
 
-# Enums
+# 2. القوائم الثابتة
 class ExpenseSource(str, enum.Enum):
     inside = "الداخل"
     cash_treasury = "عهدة Cash"
@@ -36,32 +37,21 @@ class MovementType(str, enum.Enum):
     addition = "إضافة"
     withdrawal = "سحب"
 
-# Tables
-class Region(Base):
-    __tablename__ = 'regions'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
-    is_active = Column(Boolean, default=True)
-
+# 3. جداول قاعدة البيانات النهائية
 class BusinessDay(Base):
     __tablename__ = 'business_days'
     id = Column(Integer, primary_key=True)
-    region_id = Column(Integer, ForeignKey('regions.id'), nullable=False)
-    business_date = Column(Date, nullable=False)
+    business_date = Column(Date, unique=True, nullable=False)
     status = Column(String, default="OPEN")
-    opening_inside = Column(Numeric(10, 2), default=0.00)
-    opening_cash_treasury = Column(Numeric(10, 2), default=0.00)
-    opening_insta_treasury = Column(Numeric(10, 2), default=0.00)
-    closing_inside = Column(Numeric(10, 2), nullable=True)
-    closing_cash_treasury = Column(Numeric(10, 2), nullable=True)
-    closing_insta_treasury = Column(Numeric(10, 2), nullable=True)
+    opening_treasury = Column(Numeric(10, 2), default=0.00) # عهدة بداية اليوم (المتبقي من أمس)
+    transfer_treasury = Column(Numeric(10, 2), default=0.00) # عهدة تحويل تزويد اليوم
     closed_at = Column(DateTime, nullable=True)
 
 class Employee(Base):
     __tablename__ = 'employees'
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
-    region_id = Column(Integer, ForeignKey('regions.id'), nullable=True)
+    name = Column(String, unique=True, nullable=False)
+    basic_salary = Column(Numeric(10, 2), default=0.00) # الراتب الأساسي
     is_active = Column(Boolean, default=True)
 
 class ExpenseCategory(Base):
@@ -76,57 +66,82 @@ class PurchaseCategory(Base):
     name = Column(String, unique=True, nullable=False)
     is_active = Column(Boolean, default=True)
 
+class AdminExpenseCategory(Base):
+    __tablename__ = 'admin_expense_categories'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, unique=True, nullable=False)
+    is_active = Column(Boolean, default=True)
+
 class Order(Base):
     __tablename__ = 'orders'
     id = Column(Integer, primary_key=True)
     business_day_id = Column(Integer, ForeignKey('business_days.id'), nullable=False)
-    order_time = Column(String, nullable=False)
-    customer_name = Column(String, nullable=True)
+    booking_date = Column(Date, nullable=False)
+    branch = Column(String, default="الشروق") # الفرع: الشروق أو مدينتي
+    customer_name = Column(String, nullable=False)
+    customer_phone = Column(String, nullable=True)
+    assigned_employee = Column(String, nullable=True) # اسم الموظف المنفذ
+    wash_type = Column(String, default="غسلة عادية") # غسلة عادية أو اشتراك
     is_subscription = Column(Boolean, default=False)
     price = Column(Numeric(10, 2), default=0.00)
-    payment_method = Column(Enum(PaymentMethod), nullable=False)
+    payment_method = Column(Enum(PaymentMethod), default=PaymentMethod.none)
+    status = Column(String, default="pending") # pending, done, cancel
+    is_collected = Column(Boolean, default=False) # تم التحصيل
     notes = Column(String, nullable=True)
 
 class Expense(Base):
     __tablename__ = 'expenses'
     id = Column(Integer, primary_key=True)
     business_day_id = Column(Integer, ForeignKey('business_days.id'), nullable=False)
+    expense_date = Column(Date, nullable=False)
+    branch = Column(String, default="عام") # الفرع
     person_entity = Column(String, nullable=False)
     expense_type = Column(String, nullable=False)
-    description = Column(String, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
-    source = Column(Enum(ExpenseSource), nullable=False)
-    notes = Column(String, nullable=True)
+    source = Column(Enum(ExpenseSource), default=ExpenseSource.inside)
+    description = Column(String, nullable=True)
+
+class AdminExpense(Base):
+    """مصروفات إدارية ورأسمالية خاصة بالشركة (لا تمس عهدة الوردية)"""
+    __tablename__ = 'admin_expenses'
+    id = Column(Integer, primary_key=True)
+    expense_date = Column(Date, nullable=False)
+    category = Column(String, nullable=False)
+    amount = Column(Numeric(10, 2), nullable=False)
+    payment_method = Column(String, default="حساب بنكي")
+    description = Column(String, nullable=True)
 
 class Penalty(Base):
+    """الخصومات والجزاءات"""
     __tablename__ = 'penalties'
     id = Column(Integer, primary_key=True)
-    business_day_id = Column(Integer, ForeignKey('business_days.id'), nullable=False)
+    penalty_date = Column(Date, nullable=False)
     employee_name = Column(String, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
     notes = Column(String, nullable=True)
 
 class Purchase(Base):
+    """المشتريات والصيانة"""
     __tablename__ = 'purchases'
     id = Column(Integer, primary_key=True)
-    region_id = Column(Integer, ForeignKey('regions.id'), nullable=False)
-    business_day_id = Column(Integer, ForeignKey('business_days.id'), nullable=False)
     purchase_date = Column(Date, nullable=False)
+    branch = Column(String, default="عام")
     category = Column(String, nullable=False)
     amount = Column(Numeric(10, 2), nullable=False)
-    source = Column(Enum(ExpenseSource), nullable=False)
+    source = Column(String, default="العهدة المجمعة")
     description = Column(String, nullable=True)
 
-class TreasuryMovement(Base):
-    __tablename__ = 'treasury_movements'
+class Leave(Base):
+    """الإجازات والغياب"""
+    __tablename__ = 'leaves'
     id = Column(Integer, primary_key=True)
-    business_day_id = Column(Integer, ForeignKey('business_days.id'), nullable=False)
-    treasury_type = Column(Enum(TreasuryType), nullable=False)
-    movement_type = Column(Enum(MovementType), nullable=False)
-    amount = Column(Numeric(10, 2), nullable=False)
-    description = Column(String, nullable=True)
+    leave_date = Column(Date, nullable=False)
+    employee_name = Column(String, nullable=False)
+    leave_type = Column(String, default="من رصيده") # من رصيده، على حسابه، مرضي
+    notes = Column(String, nullable=True)
 
 class Settlement(Base):
+    """سجل التسويات والتصفيات السابقة"""
     __tablename__ = 'settlements'
     id = Column(Integer, primary_key=True)
     entity_type = Column(String, nullable=False) # 'employee' or 'treasury'
@@ -135,17 +150,10 @@ class Settlement(Base):
     settlement_date = Column(Date, nullable=False)
     notes = Column(String, nullable=True)
 
-class Leave(Base):
-    __tablename__ = 'leaves'
-    id = Column(Integer, primary_key=True)
-    region_id = Column(Integer, ForeignKey('regions.id'), nullable=False)
-    employee_name = Column(String, nullable=False)
-    leave_date = Column(Date, nullable=False)
-    notes = Column(String, nullable=True)
-
 if engine:
     Base.metadata.create_all(bind=engine)
 
+# 4. إعداد السيرفر
 app = FastAPI(title="Catchy Finance API")
 app.add_middleware(
     CORSMiddleware,
@@ -156,49 +164,65 @@ app.add_middleware(
 )
 
 def get_db():
-    if not SessionLocal: raise HTTPException(status_code=500, detail="DB Error")
+    if not SessionLocal: raise HTTPException(status_code=500, detail="Database error")
     db = SessionLocal()
     try: yield db
     finally: db.close()
 
-# Schemas
+# Pydantic Schemas
 class OrderIn(BaseModel):
-    business_day_id: int
-    order_time: str
-    customer_name: Optional[str] = "بدون اسم"
+    booking_date: str
+    branch: Optional[str] = "الشروق"
+    customer_name: str
+    customer_phone: Optional[str] = ""
+    assigned_employee: Optional[str] = ""
+    wash_type: Optional[str] = "غسلة عادية"
     is_subscription: bool = False
     price: float = 0.0
     payment_method: str = "None"
+    status: Optional[str] = "pending"
+    is_collected: bool = False
     notes: Optional[str] = ""
 
+class BulkOrdersIn(BaseModel):
+    booking_date: str
+    branch: Optional[str] = "الشروق"
+    orders: List[dict]
+
 class ExpenseIn(BaseModel):
-    business_day_id: int
+    expense_date: str
+    branch: Optional[str] = "عام"
     person_entity: str
     expense_type: str
     amount: float
-    source: str
+    description: Optional[str] = ""
+
+class AdminExpenseIn(BaseModel):
+    expense_date: str
+    category: str
+    amount: float
+    payment_method: Optional[str] = "حساب بنكي"
     description: Optional[str] = ""
 
 class PenaltyIn(BaseModel):
-    business_day_id: int
+    penalty_date: str
     employee_name: str
     amount: float
     notes: Optional[str] = ""
 
 class PurchaseIn(BaseModel):
-    region_id: int
-    business_day_id: int
     purchase_date: str
+    branch: Optional[str] = "عام"
     category: str
     amount: float
-    source: str
+    source: Optional[str] = "العهدة المجمعة"
     description: Optional[str] = ""
 
-class TreasuryIn(BaseModel):
-    business_day_id: int
-    treasury_type: str
-    amount: float
-    description: Optional[str] = "تغذية"
+class LeaveIn(BaseModel):
+    leave_date: str
+    employee_name: str
+    leave_type: Optional[str] = "من رصيده"
+    notes: Optional[str] = ""
 
 class SettlementIn(BaseModel):
     entity_type: str
@@ -207,129 +231,239 @@ class SettlementIn(BaseModel):
     settlement_date: str
     notes: Optional[str] = ""
 
-class TreasurySettlementIn(BaseModel):
-    region_id: int
+class UpdateTreasuryIn(BaseModel):
     shift_date: str
-    treasury_type: str
-    amount: float
-    notes: Optional[str] = "تصفية وتوريد نقدية"
+    opening_treasury: float
+    transfer_treasury: float
 
-class LeaveIn(BaseModel):
-    region_id: int
-    employee_name: str
-    leave_date: str
-    notes: Optional[str] = "إجازة"
+# ==================== API ENDPOINTS ====================
 
-# Endpoints
-@app.get("/api/regions")
-def get_regions(db: Session = Depends(get_db)):
-    if db.query(Region).count() == 0:
-        db.add_all([Region(name="الشروق"), Region(name="مدينتي")])
-        db.commit()
-    return db.query(Region).filter(Region.is_active == True).all()
-
-@app.get("/api/shift")
-def get_shift(region_id: int, date_str: str, db: Session = Depends(get_db)):
-    t_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    current_day = db.query(BusinessDay).filter(BusinessDay.region_id == region_id, BusinessDay.business_date == t_date).first()
-    prev_closed = db.query(BusinessDay).filter(BusinessDay.region_id == region_id, BusinessDay.business_date < t_date, BusinessDay.status == "CLOSED").order_by(BusinessDay.business_date.desc()).first()
-
-    if not current_day:
-        current_day = BusinessDay(
-            region_id=region_id, business_date=t_date, status="OPEN",
-            opening_inside=prev_closed.closing_inside if prev_closed else 0,
-            opening_cash_treasury=prev_closed.closing_cash_treasury if prev_closed else 0,
-            opening_insta_treasury=prev_closed.closing_insta_treasury if prev_closed else 0
+# 1. Day / Shift Management (Unified Day)
+@app.get("/api/day-summary")
+def get_day_summary(date_str: str, db: Session = Depends(get_db)):
+    t_d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    day = db.query(BusinessDay).filter(BusinessDay.business_date == t_d).first()
+    
+    # محاولة جلب متبقي الأمس
+    prev_day = db.query(BusinessDay).filter(BusinessDay.business_date < t_d).order_by(BusinessDay.business_date.desc()).first()
+    
+    if not day:
+        day = BusinessDay(
+            business_date=t_d,
+            status="OPEN",
+            opening_treasury=0.0,
+            transfer_treasury=0.0
         )
-        db.add(current_day)
+        db.add(day)
         db.commit()
-        db.refresh(current_day)
-    elif current_day.status == "OPEN" and prev_closed:
-        p_in, p_cash, p_insta = prev_closed.closing_inside or 0, prev_closed.closing_cash_treasury or 0, prev_closed.closing_insta_treasury or 0
-        if current_day.opening_inside != p_in or current_day.opening_cash_treasury != p_cash or current_day.opening_insta_treasury != p_insta:
-            current_day.opening_inside, current_day.opening_cash_treasury, current_day.opening_insta_treasury = p_in, p_cash, p_insta
-            db.commit()
+        db.refresh(day)
 
-    day_id = current_day.id
-    orders = db.query(Order).filter(Order.business_day_id == day_id).all()
-    expenses = db.query(Expense).filter(Expense.business_day_id == day_id).all()
-    purchases = db.query(Purchase).filter(Purchase.business_day_id == day_id).all()
-    penalties = db.query(Penalty).filter(Penalty.business_day_id == day_id).all()
-    movements = db.query(TreasuryMovement).filter(TreasuryMovement.business_day_id == day_id).all()
+    # 1. حسابات الحجوزات (المحصلة فقط!)
+    orders = db.query(Order).filter(Order.booking_date == t_d).all()
+    
+    collected_orders = [o for o in orders if o.status == "done" and o.is_collected]
+    cash_collected = sum([float(o.price) for o in collected_orders if o.payment_method == PaymentMethod.cash])
+    insta_collected = sum([float(o.price) for o in collected_orders if o.payment_method == PaymentMethod.insta])
+    total_revenue = cash_collected + insta_collected
 
-    cash_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
-    insta_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.insta])
-    total_rev = cash_rev + insta_rev
+    # 2. حسابات المصروفات
+    expenses = db.query(Expense).filter(Expense.expense_date == t_d).all()
+    purchases = db.query(Purchase).filter(Purchase.purchase_date == t_d).all()
+    
+    total_expenses = sum([float(e.amount) for e in expenses]) + sum([float(p.amount) for p in purchases])
 
-    exp_inside = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.inside]) + sum([float(p.amount) for p in purchases if p.source == ExpenseSource.inside])
-    exp_cash_tr = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.cash_treasury]) + sum([float(p.amount) for p in purchases if p.source == ExpenseSource.cash_treasury])
-    exp_insta_tr = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.insta_treasury]) + sum([float(p.amount) for p in purchases if p.source == ExpenseSource.insta_treasury])
-    total_exp = exp_inside + exp_cash_tr + exp_insta_tr
-
-    # حساب الإضافات (التغذية)
-    add_inside = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.addition])
-    add_cash_tr = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.addition])
-    add_insta_tr = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.addition])
-
-    # حساب السحوبات والتوريدات للتصفية
-    with_inside = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.withdrawal])
-    with_cash_tr = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.withdrawal])
-    with_insta_tr = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.withdrawal])
-
-    curr_inside = float(current_day.opening_inside or 0) + cash_rev + add_inside - exp_inside - with_inside
-    curr_cash_tr = float(current_day.opening_cash_treasury or 0) + add_cash_tr - exp_cash_tr - with_cash_tr
-    curr_insta_tr = float(current_day.opening_insta_treasury or 0) + add_insta_tr - exp_insta_tr - with_insta_tr
-    total_resp = curr_inside + curr_cash_tr + curr_insta_tr
+    # 3. حسابات العهدة المجمعة الصريحة
+    opening_tr = float(day.opening_treasury or 0)
+    transfer_tr = float(day.transfer_treasury or 0)
+    total_treasury = opening_tr + cash_collected + transfer_tr
+    remaining_treasury = total_treasury - total_expenses
 
     return {
-        "day": {"id": current_day.id, "date": current_day.business_date.strftime("%Y-%m-%d"), "status": current_day.status, "opening_inside": int(current_day.opening_inside or 0), "opening_cash_treasury": int(current_day.opening_cash_treasury or 0), "opening_insta_treasury": int(current_day.opening_insta_treasury or 0)},
-        "revenue": {"cash": int(cash_rev), "insta": int(insta_rev), "total": int(total_rev)},
-        "expenses_summary": {"inside": int(exp_inside), "cash_tr": int(exp_cash_tr), "insta_tr": int(exp_insta_tr), "total": int(total_exp)},
-        "balances": {"inside": int(curr_inside), "cash_tr": int(curr_cash_tr), "insta_tr": int(curr_insta_tr), "total_responsibility": int(total_resp)},
-        "orders": [{"id": o.id, "time": o.order_time, "customer": o.customer_name, "is_subscription": o.is_subscription, "price": int(o.price), "payment": o.payment_method.value, "notes": o.notes or ""} for o in orders],
-        "expenses": [{"id": e.id, "person": e.person_entity, "type": e.expense_type, "amount": int(e.amount), "source": e.source.value, "notes": e.description or ""} for e in expenses],
-        "penalties": [{"id": p.id, "employee": p.employee_name, "amount": int(p.amount), "notes": p.notes or ""} for p in penalties],
-        "treasury_movements": [{"id": m.id, "type": m.treasury_type.value, "movement": m.movement_type.value, "amount": int(m.amount), "desc": m.description or "حركة"} for m in movements]
+        "day": {
+            "id": day.id,
+            "date": day.business_date.strftime("%Y-%m-%d"),
+            "status": day.status,
+            "opening_treasury": int(opening_tr),
+            "transfer_treasury": int(transfer_tr),
+            "cash_collected": int(cash_collected),
+            "total_treasury": int(total_treasury),
+            "total_expenses": int(total_expenses),
+            "remaining_treasury": int(remaining_treasury)
+        },
+        "revenue": {
+            "cash": int(cash_collected),
+            "insta": int(insta_collected),
+            "total": int(total_revenue)
+        }
     }
 
-# Orders
-@app.post("/api/orders")
-def add_order(payload: OrderIn, db: Session = Depends(get_db)):
-    pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
-    price = payload.price if pm != PaymentMethod.none else 0.0
-    db.add(Order(business_day_id=payload.business_day_id, order_time=payload.order_time, customer_name=payload.customer_name, is_subscription=payload.is_subscription, price=price, payment_method=pm, notes=payload.notes))
+@app.post("/api/update-treasury")
+def update_treasury(payload: UpdateTreasuryIn, db: Session = Depends(get_db)):
+    t_d = datetime.strptime(payload.shift_date, "%Y-%m-%d").date()
+    day = db.query(BusinessDay).filter(BusinessDay.business_date == t_d).first()
+    if not day:
+        day = BusinessDay(business_date=t_d, status="OPEN")
+        db.add(day)
+    day.opening_treasury = payload.opening_treasury
+    day.transfer_treasury = payload.transfer_treasury
     db.commit()
     return {"status": "ok"}
 
-@app.put("/api/orders/{order_id}")
-def update_order(order_id: int, payload: OrderIn, db: Session = Depends(get_db)):
+# 2. Bookings (الحجوزات)
+@app.get("/api/bookings")
+def get_bookings(date_str: str, branch: Optional[str] = None, db: Session = Depends(get_db)):
+    t_d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    q = db.query(Order).filter(Order.booking_date == t_d)
+    if branch and branch != "الكل":
+        q = q.filter(Order.branch == branch)
+    orders = q.all()
+    return [{
+        "id": o.id,
+        "date": o.booking_date.strftime("%Y-%m-%d"),
+        "branch": o.branch,
+        "customer_name": o.customer_name,
+        "customer_phone": o.customer_phone or "",
+        "assigned_employee": o.assigned_employee or "",
+        "wash_type": o.wash_type,
+        "is_subscription": o.is_subscription,
+        "price": int(o.price),
+        "payment_method": o.payment_method.value,
+        "status": o.status,
+        "is_collected": o.is_collected,
+        "notes": o.notes or ""
+    } for o in orders]
+
+@app.post("/api/bookings")
+def add_booking(payload: OrderIn, db: Session = Depends(get_db)):
+    t_d = datetime.strptime(payload.booking_date, "%Y-%m-%d").date()
+    day = db.query(BusinessDay).filter(BusinessDay.business_date == t_d).first()
+    if not day:
+        day = BusinessDay(business_date=t_d, status="OPEN")
+        db.add(day)
+        db.commit()
+        db.refresh(day)
+        
+    pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
+    o = Order(
+        business_day_id=day.id,
+        booking_date=t_d,
+        branch=payload.branch or "الشروق",
+        customer_name=payload.customer_name,
+        customer_phone=payload.customer_phone,
+        assigned_employee=payload.assigned_employee,
+        wash_type=payload.wash_type,
+        is_subscription=payload.is_subscription,
+        price=payload.price,
+        payment_method=pm,
+        status=payload.status or "pending",
+        is_collected=payload.is_collected,
+        notes=payload.notes
+    )
+    db.add(o)
+    db.commit()
+    return {"status": "ok"}
+
+@app.post("/api/bookings/bulk")
+def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
+    """رفع شيت الإكسيل بالكامل وحفظه"""
+    t_d = datetime.strptime(payload.booking_date, "%Y-%m-%d").date()
+    day = db.query(BusinessDay).filter(BusinessDay.business_date == t_d).first()
+    if not day:
+        day = BusinessDay(business_date=t_d, status="OPEN")
+        db.add(day)
+        db.commit()
+        db.refresh(day)
+
+    new_orders = []
+    for item in payload.orders:
+        c_name = str(item.get("customer_name") or item.get("اسم العميل") or "").strip()
+        if not c_name: continue
+        
+        c_phone = str(item.get("customer_phone") or item.get("الهاتف") or item.get("تليفون") or "").strip()
+        w_type = str(item.get("wash_type") or item.get("نوع الغسلة") or "غسلة عادية").strip()
+        is_sub = ("اشتراك" in w_type) or bool(item.get("is_subscription"))
+        
+        o = Order(
+            business_day_id=day.id,
+            booking_date=t_d,
+            branch=payload.branch or item.get("branch") or "الشروق",
+            customer_name=c_name,
+            customer_phone=c_phone,
+            assigned_employee=item.get("assigned_employee") or "",
+            wash_type=w_type,
+            is_subscription=is_sub,
+            price=float(item.get("price") or 0),
+            payment_method=PaymentMethod.none,
+            status="pending",
+            is_collected=False,
+            notes=str(item.get("notes") or "")
+        )
+        new_orders.append(o)
+
+    if new_orders:
+        db.add_all(new_orders)
+        db.commit()
+    return {"status": "ok", "count": len(new_orders)}
+
+@app.put("/api/bookings/{order_id}")
+def update_booking(order_id: int, payload: OrderIn, db: Session = Depends(get_db)):
     o = db.query(Order).get(order_id)
     if not o: raise HTTPException(status_code=404)
     pm = PaymentMethod.cash if payload.payment_method == "Cash" else (PaymentMethod.insta if payload.payment_method == "Insta" else PaymentMethod.none)
-    o.order_time, o.customer_name, o.is_subscription, o.price, o.payment_method, o.notes = payload.order_time, payload.customer_name, payload.is_subscription, payload.price if pm != PaymentMethod.none else 0.0, pm, payload.notes
+    o.branch = payload.branch
+    o.customer_name = payload.customer_name
+    o.customer_phone = payload.customer_phone
+    o.assigned_employee = payload.assigned_employee
+    o.wash_type = payload.wash_type
+    o.is_subscription = payload.is_subscription
+    o.price = payload.price
+    o.payment_method = pm
+    o.status = payload.status
+    o.is_collected = payload.is_collected
+    o.notes = payload.notes
     db.commit()
     return {"status": "ok"}
 
-@app.delete("/api/orders/{order_id}")
-def delete_order(order_id: int, db: Session = Depends(get_db)):
+@app.delete("/api/bookings/{order_id}")
+def delete_booking(order_id: int, db: Session = Depends(get_db)):
     db.query(Order).filter(Order.id == order_id).delete()
     db.commit()
     return {"status": "ok"}
 
-# Expenses
+# 3. Expenses (العهدة والمصروفات)
+@app.get("/api/expenses")
+def get_expenses(date_str: str, db: Session = Depends(get_db)):
+    t_d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    exps = db.query(Expense).filter(Expense.expense_date == t_d).all()
+    return [{
+        "id": e.id,
+        "date": e.expense_date.strftime("%Y-%m-%d"),
+        "branch": e.branch,
+        "person": e.person_entity,
+        "type": e.expense_type,
+        "amount": int(e.amount),
+        "notes": e.description or ""
+    } for e in exps]
+
 @app.post("/api/expenses")
 def add_expense(payload: ExpenseIn, db: Session = Depends(get_db)):
-    src = ExpenseSource.inside if payload.source == "الداخل" else (ExpenseSource.cash_treasury if payload.source == "عهدة Cash" else ExpenseSource.insta_treasury)
-    db.add(Expense(business_day_id=payload.business_day_id, person_entity=payload.person_entity, expense_type=payload.expense_type, amount=payload.amount, source=src, description=payload.description))
-    db.commit()
-    return {"status": "ok"}
-
-@app.put("/api/expenses/{expense_id}")
-def update_expense(expense_id: int, payload: ExpenseIn, db: Session = Depends(get_db)):
-    e = db.query(Expense).get(expense_id)
-    if not e: raise HTTPException(status_code=404)
-    src = ExpenseSource.inside if payload.source == "الداخل" else (ExpenseSource.cash_treasury if payload.source == "عهدة Cash" else ExpenseSource.insta_treasury)
-    e.person_entity, e.expense_type, e.amount, e.source, e.description = payload.person_entity, payload.expense_type, payload.amount, src, payload.description
+    t_d = datetime.strptime(payload.expense_date, "%Y-%m-%d").date()
+    day = db.query(BusinessDay).filter(BusinessDay.business_date == t_d).first()
+    if not day:
+        day = BusinessDay(business_date=t_d, status="OPEN")
+        db.add(day)
+        db.commit()
+        db.refresh(day)
+        
+    db.add(Expense(
+        business_day_id=day.id,
+        expense_date=t_d,
+        branch=payload.branch or "عام",
+        person_entity=payload.person_entity,
+        expense_type=payload.expense_type,
+        amount=payload.amount,
+        description=payload.description
+    ))
     db.commit()
     return {"status": "ok"}
 
@@ -339,10 +473,19 @@ def delete_expense(expense_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Penalties
+# 4. Penalties (الخصومات)
+@app.get("/api/penalties")
+def get_penalties(date_str: Optional[str] = None, db: Session = Depends(get_db)):
+    q = db.query(Penalty).order_by(Penalty.penalty_date.desc())
+    if date_str:
+        t_d = datetime.strptime(date_str, "%Y-%m-%d").date()
+        q = q.filter(Penalty.penalty_date == t_d)
+    return [{"id": p.id, "date": p.penalty_date.strftime("%Y-%m-%d"), "employee": p.employee_name, "amount": int(p.amount), "notes": p.notes or ""} for p in q.all()]
+
 @app.post("/api/penalties")
 def add_penalty(payload: PenaltyIn, db: Session = Depends(get_db)):
-    db.add(Penalty(business_day_id=payload.business_day_id, employee_name=payload.employee_name, amount=payload.amount, notes=payload.notes))
+    t_d = datetime.strptime(payload.penalty_date, "%Y-%m-%d").date()
+    db.add(Penalty(penalty_date=t_d, employee_name=payload.employee_name, amount=payload.amount, notes=payload.notes))
     db.commit()
     return {"status": "ok"}
 
@@ -352,19 +495,19 @@ def delete_penalty(penalty_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Purchases
+# 5. Purchases & Maintenance (المشتريات والصيانة)
 @app.get("/api/purchases")
-def get_purchases(region_id: Optional[int] = None, db: Session = Depends(get_db)):
+def get_purchases(date_str: Optional[str] = None, db: Session = Depends(get_db)):
     q = db.query(Purchase).order_by(Purchase.purchase_date.desc())
-    if region_id: q = q.filter(Purchase.region_id == region_id)
-    regs = {r.id: r.name for r in db.query(Region).all()}
-    return [{"id": p.id, "date": p.purchase_date.strftime("%Y-%m-%d"), "branch": regs.get(p.region_id, "عام"), "category": p.category, "amount": int(p.amount), "source": p.source.value, "description": p.description or ""} for p in q.all()]
+    if date_str:
+        t_d = datetime.strptime(date_str, "%Y-%m-%d").date()
+        q = q.filter(Purchase.purchase_date == t_d)
+    return [{"id": p.id, "date": p.purchase_date.strftime("%Y-%m-%d"), "branch": p.branch, "category": p.category, "amount": int(p.amount), "source": p.source, "description": p.description or ""} for p in q.all()]
 
 @app.post("/api/purchases")
 def add_purchase(payload: PurchaseIn, db: Session = Depends(get_db)):
-    p_d = datetime.strptime(payload.purchase_date, "%Y-%m-%d").date()
-    src = ExpenseSource.inside if payload.source == "الداخل" else (ExpenseSource.cash_treasury if payload.source == "عهدة Cash" else ExpenseSource.insta_treasury)
-    db.add(Purchase(region_id=payload.region_id, business_day_id=payload.business_day_id, purchase_date=p_d, category=payload.category, amount=payload.amount, source=src, description=payload.description))
+    t_d = datetime.strptime(payload.purchase_date, "%Y-%m-%d").date()
+    db.add(Purchase(purchase_date=t_d, branch=payload.branch or "عام", category=payload.category, amount=payload.amount, source=payload.source or "العهدة المجمعة", description=payload.description))
     db.commit()
     return {"status": "ok"}
 
@@ -374,221 +517,34 @@ def delete_purchase(purchase_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# Treasury Movements
-@app.post("/api/treasury-feed")
-def add_treasury(payload: TreasuryIn, db: Session = Depends(get_db)):
-    tt = TreasuryType.inside if payload.treasury_type == "الداخل" else (TreasuryType.cash if payload.treasury_type == "عهدة Cash" else TreasuryType.insta)
-    db.add(TreasuryMovement(business_day_id=payload.business_day_id, treasury_type=tt, movement_type=MovementType.addition, amount=payload.amount, description=payload.description))
+# 6. Admin Expenses (مصروفات إدارية ورأسمالية)
+@app.get("/api/admin-expenses")
+def get_admin_expenses(db: Session = Depends(get_db)):
+    items = db.query(AdminExpense).order_by(AdminExpense.expense_date.desc()).all()
+    return [{"id": a.id, "date": a.expense_date.strftime("%Y-%m-%d"), "category": a.category, "amount": int(a.amount), "payment_method": a.payment_method, "description": a.description or ""} for a in items]
+
+@app.post("/api/admin-expenses")
+def add_admin_expense(payload: AdminExpenseIn, db: Session = Depends(get_db)):
+    t_d = datetime.strptime(payload.expense_date, "%Y-%m-%d").date()
+    db.add(AdminExpense(expense_date=t_d, category=payload.category, amount=payload.amount, payment_method=payload.payment_method, description=payload.description))
     db.commit()
     return {"status": "ok"}
 
-@app.delete("/api/treasury-movements/{movement_id}")
-def delete_treasury(movement_id: int, db: Session = Depends(get_db)):
-    db.query(TreasuryMovement).filter(TreasuryMovement.id == movement_id).delete()
+@app.delete("/api/admin-expenses/{item_id}")
+def delete_admin_expense(item_id: int, db: Session = Depends(get_db)):
+    db.query(AdminExpense).filter(AdminExpense.id == item_id).delete()
     db.commit()
     return {"status": "ok"}
 
-# Settlements (الموظفين + الخزائن)
-@app.get("/api/settlements/summary")
-def get_settlements_summary(region_id: Optional[int] = None, shift_date: Optional[str] = None, db: Session = Depends(get_db)):
-    expenses = db.query(Expense).all()
-    penalties = db.query(Penalty).all()
-    settlements = db.query(Settlement).filter(Settlement.entity_type == "employee").all()
-    
-    def is_deductible(t):
-        s = str(t).strip()
-        return ("سلف" in s) or ("مصروف" in s and "بنزين" not in s and "سكن" not in s)
-
-    emp_balances = {}
-    for e in expenses:
-        if is_deductible(e.expense_type): emp_balances[e.person_entity] = emp_balances.get(e.person_entity, 0) + int(e.amount)
-    for p in penalties:
-        emp_balances[p.employee_name] = emp_balances.get(p.employee_name, 0) + int(p.amount)
-    for s in settlements:
-        emp_balances[s.name] = emp_balances.get(s.name, 0) - int(s.amount)
-
-    emp_list = [{"name": k, "balance": max(0, v), "raw_balance": v} for k, v in emp_balances.items() if v != 0]
-
-    # جلب أرصدة الخزائن الحالية للفرع واليومية المحددة للتصفية
-    treasury_balances = {"inside": 0, "cash_tr": 0, "insta_tr": 0}
-    if region_id and shift_date:
-        t_d = datetime.strptime(shift_date, "%Y-%m-%d").date()
-        day = db.query(BusinessDay).filter(BusinessDay.region_id == region_id, BusinessDay.business_date == t_d).first()
-        if day:
-            orders = db.query(Order).filter(Order.business_day_id == day.id).all()
-            exps = db.query(Expense).filter(Expense.business_day_id == day.id).all()
-            purchs = db.query(Purchase).filter(Purchase.business_day_id == day.id).all()
-            movs = db.query(TreasuryMovement).filter(TreasuryMovement.business_day_id == day.id).all()
-
-            c_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
-            e_in = sum([float(e.amount) for e in exps if e.source == ExpenseSource.inside]) + sum([float(p.amount) for p in purchs if p.source == ExpenseSource.inside])
-            e_c = sum([float(e.amount) for e in exps if e.source == ExpenseSource.cash_treasury]) + sum([float(p.amount) for p in purchs if p.source == ExpenseSource.cash_treasury])
-            e_i = sum([float(e.amount) for e in exps if e.source == ExpenseSource.insta_treasury]) + sum([float(p.amount) for p in purchs if p.source == ExpenseSource.insta_treasury])
-
-            a_in = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.addition])
-            a_c = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.addition])
-            a_i = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.addition])
-
-            w_in = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.withdrawal])
-            w_c = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.withdrawal])
-            w_i = sum([float(m.amount) for m in movs if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.withdrawal])
-
-            treasury_balances["inside"] = max(0, int(float(day.opening_inside or 0) + c_rev + a_in - e_in - w_in))
-            treasury_balances["cash_tr"] = max(0, int(float(day.opening_cash_treasury or 0) + a_c - e_c - w_c))
-            treasury_balances["insta_tr"] = max(0, int(float(day.opening_insta_treasury or 0) + a_i - e_i - w_i))
-
-    history = db.query(Settlement).order_by(Settlement.settlement_date.desc()).all()
-    return {
-        "employees": sorted(emp_list, key=lambda x: x["balance"], reverse=True),
-        "treasury_balances": treasury_balances,
-        "history": [{"id": h.id, "type": h.entity_type, "name": h.name, "amount": int(h.amount), "date": h.settlement_date.strftime("%Y-%m-%d"), "notes": h.notes or ""} for h in history]
-    }
-
-@app.post("/api/settlements")
-def make_settlement(payload: SettlementIn, db: Session = Depends(get_db)):
-    s_d = datetime.strptime(payload.settlement_date, "%Y-%m-%d").date()
-    db.add(Settlement(entity_type=payload.entity_type, name=payload.name, amount=payload.amount, settlement_date=s_d, notes=payload.notes))
-    db.commit()
-    return {"status": "ok"}
-
-# توريد وتصفية الخزائن الحقيقية (يسجل حركة سحب في اليومية)
-@app.post("/api/settlements/treasury")
-def settle_treasury(payload: TreasurySettlementIn, db: Session = Depends(get_db)):
-    s_d = datetime.strptime(payload.shift_date, "%Y-%m-%d").date()
-    day = db.query(BusinessDay).filter(BusinessDay.region_id == payload.region_id, BusinessDay.business_date == s_d).first()
-    if not day: raise HTTPException(status_code=400, detail="الوردية غير مفتوحة لهذا التاريخ")
-
-    tt = TreasuryType.inside if payload.treasury_type == "الداخل" else (TreasuryType.cash if payload.treasury_type == "عهدة Cash" else TreasuryType.insta)
-    
-    # تسجيل حركة سحب في اليومية لتنزيل الرصيد وترحيل الصافي
-    db.add(TreasuryMovement(business_day_id=day.id, treasury_type=tt, movement_type=MovementType.withdrawal, amount=payload.amount, description=f"تصفية وتوريد: {payload.notes}"))
-    # تسجيلها في جدول تاريخ التسويات
-    db.add(Settlement(entity_type="treasury", name=f"{payload.treasury_type} (فرع {payload.region_id})", amount=payload.amount, settlement_date=s_d, notes=payload.notes))
-    db.commit()
-    return {"status": "ok"}
-
-@app.delete("/api/settlements/{settlement_id}")
-def delete_settlement(settlement_id: int, db: Session = Depends(get_db)):
-    db.query(Settlement).filter(Settlement.id == settlement_id).delete()
-    db.commit()
-    return {"status": "ok"}
-
-# Shift Control
-@app.post("/api/shift/{day_id}/close")
-def close_shift(day_id: int, db: Session = Depends(get_db)):
-    d = db.query(BusinessDay).get(day_id)
-    if not d: raise HTTPException(status_code=404)
-    orders = db.query(Order).filter(Order.business_day_id == day_id).all()
-    expenses = db.query(Expense).filter(Expense.business_day_id == day_id).all()
-    purchases = db.query(Purchase).filter(Purchase.business_day_id == day_id).all()
-    movements = db.query(TreasuryMovement).filter(TreasuryMovement.business_day_id == day_id).all()
-    
-    cash_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
-    exp_in = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.inside]) + sum([float(p.amount) for p in purchases if p.source == ExpenseSource.inside])
-    exp_c = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.cash_treasury]) + sum([float(p.amount) for p in purchases if p.source == ExpenseSource.cash_treasury])
-    exp_i = sum([float(e.amount) for e in expenses if e.source == ExpenseSource.insta_treasury]) + sum([float(p.amount) for p in purchases if p.source == ExpenseSource.insta_treasury])
-    
-    add_in = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.addition])
-    add_c = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.addition])
-    add_i = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.addition])
-
-    with_in = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.inside and m.movement_type == MovementType.withdrawal])
-    with_c = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.cash and m.movement_type == MovementType.withdrawal])
-    with_i = sum([float(m.amount) for m in movements if m.treasury_type == TreasuryType.insta and m.movement_type == MovementType.withdrawal])
-
-    d.status = "CLOSED"
-    d.closing_inside = float(d.opening_inside or 0) + cash_rev + add_in - exp_in - with_in
-    d.closing_cash_treasury = float(d.opening_cash_treasury or 0) + add_c - exp_c - with_c
-    d.closing_insta_treasury = float(d.opening_insta_treasury or 0) + add_i - exp_i - with_i
-    d.closed_at = datetime.utcnow()
-    db.commit()
-    return {"status": "ok"}
-
-@app.post("/api/shift/{day_id}/reopen")
-def reopen_shift(day_id: int, db: Session = Depends(get_db)):
-    d = db.query(BusinessDay).get(day_id)
-    if not d: raise HTTPException(status_code=404)
-    d.status = "OPEN"
-    db.commit()
-    return {"status": "ok"}
-
-# Reports
-@app.get("/api/reports")
-def get_reports(start_date: str, end_date: str, region_id: Optional[int] = None, db: Session = Depends(get_db)):
-    s_d, e_d = datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.strptime(end_date, "%Y-%m-%d").date()
-    q = db.query(BusinessDay).filter(BusinessDay.business_date >= s_d, BusinessDay.business_date <= e_d)
-    if region_id: q = q.filter(BusinessDay.region_id == region_id)
-    days = q.all()
-    day_ids = [d.id for d in days]
-    if not day_ids: return {"empty": True}
-
-    regions = {r.id: r.name for r in db.query(Region).all()}
-    day_map = {d.id: {"date": d.business_date.strftime("%Y-%m-%d"), "region": regions.get(d.region_id, "عام")} for d in days}
-
-    orders = db.query(Order).filter(Order.business_day_id.in_(day_ids)).all()
-    cash_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
-    insta_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.insta])
-
-    expenses = db.query(Expense).filter(Expense.business_day_id.in_(day_ids)).all()
-    penalties = db.query(Penalty).filter(Penalty.business_day_id.in_(day_ids)).all()
-    purchases = db.query(Purchase).filter(Purchase.business_day_id.in_(day_ids)).all()
-
-    def is_deductible(t):
-        s = str(t).strip()
-        return ("سلف" in s) or ("مصروف" in s and "بنزين" not in s and "سكن" not in s)
-
-    emp_deductions = {}
-    opex_categories = {}
-
-    for e in expenses:
-        info = day_map.get(e.business_day_id, {"date": "", "region": ""})
-        amt = int(e.amount)
-        if is_deductible(e.expense_type):
-            if e.person_entity not in emp_deductions: emp_deductions[e.person_entity] = {"total": 0, "branches": {}}
-            emp_deductions[e.person_entity]["total"] += amt
-            b_name = info["region"]
-            emp_deductions[e.person_entity]["branches"][b_name] = emp_deductions[e.person_entity]["branches"].get(b_name, 0) + amt
-        else:
-            opex_categories[e.expense_type] = opex_categories.get(e.expense_type, 0) + amt
-
-    for p in penalties:
-        info = day_map.get(p.business_day_id, {"date": "", "region": ""})
-        amt = int(p.amount)
-        if p.employee_name not in emp_deductions: emp_deductions[p.employee_name] = {"total": 0, "branches": {}}
-        emp_deductions[p.employee_name]["total"] += amt
-        b_name = info["region"]
-        emp_deductions[p.employee_name]["branches"][b_name] = emp_deductions[p.employee_name]["branches"].get(b_name, 0) + amt
-
-    salary_table = []
-    for emp, data in emp_deductions.items():
-        row = {"employee": emp, "total": data["total"]}
-        for r_name in regions.values(): row[r_name] = data["branches"].get(r_name, 0)
-        salary_table.append(row)
-
-    opex_table = [{"category": k, "amount": v} for k, v in sorted(opex_categories.items(), key=lambda x: x[1], reverse=True)]
-
-    raw_exps = [{"date": day_map.get(e.business_day_id, {}).get("date"), "branch": day_map.get(e.business_day_id, {}).get("region"), "person": e.person_entity, "type": e.expense_type, "amount": int(e.amount), "source": e.source.value, "notes": e.description or "", "is_deductible": is_deductible(e.expense_type)} for e in expenses]
-    raw_exps += [{"date": day_map.get(p.business_day_id, {}).get("date"), "branch": day_map.get(p.business_day_id, {}).get("region"), "person": p.employee_name, "type": "خصم / جزاء", "amount": int(p.amount), "source": "إداري", "notes": p.notes or "", "is_deductible": True} for p in penalties]
-
-    return {
-        "empty": False,
-        "revenue": {"cash": int(cash_rev), "insta": int(insta_rev), "total": int(cash_rev + insta_rev)},
-        "salary_deductions": salary_table,
-        "opex": opex_table,
-        "opex_total": sum(opex_categories.values()),
-        "purchases_total": sum([int(p.amount) for p in purchases]),
-        "raw_expenses": raw_exps
-    }
-
-# Leaves & Settings
+# 7. Leaves (الإجازات)
 @app.get("/api/leaves")
 def get_leaves(db: Session = Depends(get_db)):
-    regions = {r.id: r.name for r in db.query(Region).all()}
-    return [{"id": l.id, "employee": l.employee_name, "date": l.leave_date.strftime("%Y-%m-%d"), "branch": regions.get(l.region_id, "عام"), "notes": l.notes or "إجازة"} for l in db.query(Leave).order_by(Leave.leave_date.desc()).all()]
+    return [{"id": l.id, "date": l.leave_date.strftime("%Y-%m-%d"), "employee": l.employee_name, "leave_type": l.leave_type, "notes": l.notes or ""} for l in db.query(Leave).order_by(Leave.leave_date.desc()).all()]
 
 @app.post("/api/leaves")
 def add_leave(payload: LeaveIn, db: Session = Depends(get_db)):
-    db.add(Leave(region_id=payload.region_id, employee_name=payload.employee_name, leave_date=datetime.strptime(payload.leave_date, "%Y-%m-%d").date(), notes=payload.notes))
+    t_d = datetime.strptime(payload.leave_date, "%Y-%m-%d").date()
+    db.add(Leave(leave_date=t_d, employee_name=payload.employee_name, leave_type=payload.leave_type, notes=payload.notes))
     db.commit()
     return {"status": "ok"}
 
@@ -598,52 +554,237 @@ def delete_leave(leave_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-@app.get("/api/meta")
-def get_meta(db: Session = Depends(get_db)):
-    emps = [e.name for e in db.query(Employee).filter(Employee.is_active == True).all()]
-    cats = [c.name for c in db.query(ExpenseCategory).filter(ExpenseCategory.is_active == True).all()]
-    p_cats = [c.name for c in db.query(PurchaseCategory).filter(PurchaseCategory.is_active == True).all()]
-    if not cats: cats = ["سلفة", "مصروف شخصي", "بنزين", "سكن", "بوفيه", "تيبس"]
-    if not p_cats: p_cats = ["شامبو وفوط", "صيانة ماكينات", "قطع غيار", "مشتريات عدد"]
-    return {"employees": sorted(list(set(emps))), "categories": sorted(list(set(cats))), "purchase_categories": sorted(list(set(p_cats)))}
+# 8. Payroll & Employee Advances Health (السحوبات والسلف والمرتبات)
+@app.get("/api/payroll-overview")
+def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(get_db)):
+    s_d, e_d = datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.strptime(end_date, "%Y-%m-%d").date()
+    employees = db.query(Employee).filter(Employee.is_active == True).all()
+    
+    # جلب الحركات في الفترة
+    expenses = db.query(Expense).filter(Expense.expense_date >= s_d, Expense.expense_date <= e_d).all()
+    penalties = db.query(Penalty).filter(Penalty.penalty_date >= s_d, Penalty.penalty_date <= e_d).all()
+    leaves = db.query(Leave).filter(Leave.leave_date >= s_d, Leave.leave_date <= e_d).all()
+    settlements = db.query(Settlement).filter(Settlement.settlement_date >= s_d, Settlement.settlement_date <= e_d, Settlement.entity_type == "employee").all()
 
-@app.post("/api/employees")
-def create_emp(name: str, region_id: int, db: Session = Depends(get_db)):
-    if name.strip(): db.add(Employee(name=name.strip(), region_id=region_id)); db.commit()
+    # كل السلف التاريخية التراكمية
+    all_loans = db.query(Expense).filter(Expense.expense_type == "سلفة").all()
+    all_loan_settlements = db.query(Settlement).filter(Settlement.entity_type == "employee").all()
+
+    payroll_table = []
+    advances_overview = []
+
+    for emp in employees:
+        b_salary = float(emp.basic_salary or 0)
+        daily_rate = b_salary / 30.0 if b_salary > 0 else 0
+
+        # سحوبات الشهر العادية
+        emp_draws = sum([float(e.amount) for e in expenses if e.person_entity == emp.name and e.expense_type == "سحوبات من المرتب"])
+        
+        # خصومات وجزاءات
+        emp_penalties = sum([float(p.amount) for p in penalties if p.employee_name == emp.name])
+        
+        # غياب على حسابه
+        unpaid_days = len([l for l in leaves if l.employee_name == emp.name and l.leave_type == "على حسابه"])
+        unpaid_deduction = unpaid_days * daily_rate
+
+        # إجمالي السلف التراكمية التاريخية للموظف
+        total_loan_ever = sum([float(e.amount) for e in all_loans if e.person_entity == emp.name])
+        settled_loan_ever = sum([float(s.amount) for s in all_loan_settlements if s.name == emp.name])
+        current_loan_debt = max(0, total_loan_ever - settled_loan_ever)
+
+        # قسط سداد السلفة لهذا الشهر المسجل
+        this_month_settled = sum([float(s.amount) for s in settlements if s.name == emp.name])
+
+        # الإجمالي المخصوم هذا الشهر
+        total_deductions_this_month = emp_draws + emp_penalties + unpaid_deduction + this_month_settled
+        net_salary = max(0, b_salary - total_deductions_this_month)
+
+        # نسبة السحب للمؤشر
+        draw_ratio = (total_deductions_this_month / b_salary * 100) if b_salary > 0 else 0
+        if draw_ratio <= 35: status_color = "green"
+        elif draw_ratio <= 65: status_color = "yellow"
+        else: status_color = "red"
+
+        # تاريخ سحوبات هذا الموظف بالتفصيل للأكورديون
+        emp_history = [{"date": e.expense_date.strftime("%Y-%m-%d"), "amount": int(e.amount), "type": e.expense_type, "notes": e.description or ""} for e in expenses if e.person_entity == emp.name and ("سلف" in e.expense_type or "سحوبات" in e.expense_type)]
+
+        advances_overview.append({
+            "name": emp.name,
+            "basic_salary": int(b_salary),
+            "monthly_draws": int(emp_draws),
+            "loan_installment": int(this_month_settled),
+            "total_monthly_commitment": int(total_deductions_this_month),
+            "total_loan_debt": int(current_loan_debt),
+            "draw_ratio": int(draw_ratio),
+            "status_color": status_color,
+            "history": emp_history
+        })
+
+        payroll_table.append({
+            "name": emp.name,
+            "basic_salary": int(b_salary),
+            "draws": int(emp_draws),
+            "loan_installment": int(this_month_settled),
+            "penalties": int(emp_penalties),
+            "unpaid_days": unpaid_days,
+            "unpaid_deduction": int(unpaid_deduction),
+            "total_deductions": int(total_deductions_this_month),
+            "net_salary": int(net_salary)
+        })
+
+    return {
+        "advances_overview": advances_overview,
+        "payroll_table": payroll_table
+    }
+
+# 9. Settlements Actions
+@app.post("/api/settlements")
+def add_settlement(payload: SettlementIn, db: Session = Depends(get_db)):
+    t_d = datetime.strptime(payload.settlement_date, "%Y-%m-%d").date()
+    db.add(Settlement(entity_type=payload.entity_type, name=payload.name, amount=payload.amount, settlement_date=t_d, notes=payload.notes))
+    db.commit()
     return {"status": "ok"}
 
-@app.delete("/api/employees")
-def remove_emp(name: str, db: Session = Depends(get_db)):
-    db.query(Employee).filter(Employee.name == name).delete(); db.commit()
+@app.delete("/api/settlements/{item_id}")
+def delete_settlement(item_id: int, db: Session = Depends(get_db)):
+    db.query(Settlement).filter(Settlement.id == item_id).delete()
+    db.commit()
+    return {"status": "ok"}
+
+# 10. Executive Company Reports (P&L & Decision Dashboard)
+@app.get("/api/company-bi")
+def get_company_bi(start_date: str, end_date: str, db: Session = Depends(get_db)):
+    s_d, e_d = datetime.strptime(start_date, "%Y-%m-%d").date(), datetime.strptime(end_date, "%Y-%m-%d").date()
+
+    # 1. إيرادات الحجوزات المحصلة
+    orders = db.query(Order).filter(Order.booking_date >= s_d, Order.booking_date <= e_d, Order.status == "done", Order.is_collected == True).all()
+    cash_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
+    insta_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.insta])
+    total_rev = cash_rev + insta_rev
+    total_washes = len(orders)
+
+    # إيراد كل فرع
+    shorouk_rev = sum([float(o.price) for o in orders if o.branch == "الشروق"])
+    madinaty_rev = sum([float(o.price) for o in orders if o.branch == "مدينتي"])
+
+    # 2. مصاريف التشغيل
+    expenses = db.query(Expense).filter(Expense.expense_date >= s_d, Expense.expense_date <= e_d).all()
+    opex_items = [e for e in expenses if e.expense_type not in ["سحوبات من المرتب", "سلفة"]]
+    total_opex = sum([float(e.amount) for e in opex_items])
+
+    # تفصيل بنود التشغيل
+    opex_breakdown = {}
+    for e in opex_items:
+        opex_breakdown[e.expense_type] = opex_breakdown.get(e.expense_type, 0) + int(e.amount)
+
+    # 3. المشتريات والصيانة
+    purchases = db.query(Purchase).filter(Purchase.purchase_date >= s_d, Purchase.purchase_date <= e_d).all()
+    total_purchases = sum([float(p.amount) for p in purchases])
+
+    # 4. المصروفات الإدارية
+    admin_exps = db.query(AdminExpense).filter(AdminExpense.expense_date >= s_d, AdminExpense.expense_date <= e_d).all()
+    total_admin = sum([float(a.amount) for a in admin_exps])
+
+    # 5. تكلفة المرتبات الأساسية
+    employees = db.query(Employee).filter(Employee.is_active == True).all()
+    total_salaries_base = sum([float(e.basic_salary or 0) for e in employees])
+
+    # 6. الحسابات الصافية
+    gross_operating_profit = total_rev - total_opex - total_purchases
+    net_company_profit = gross_operating_profit - total_salaries_base - total_admin
+
+    # مؤشرات القرار
+    cost_per_wash = int(total_opex / total_washes) if total_washes > 0 else 0
+    profit_per_wash = int(total_rev / total_washes) - cost_per_wash if total_washes > 0 else 0
+    payroll_ratio = int((total_salaries_base / total_rev * 100)) if total_rev > 0 else 0
+
+    return {
+        "kpis": {
+            "total_revenue": int(total_rev),
+            "cash_revenue": int(cash_rev),
+            "insta_revenue": int(insta_rev),
+            "shorouk_revenue": int(shorouk_rev),
+            "madinaty_revenue": int(madinaty_rev),
+            "total_washes": total_washes,
+            "total_opex": int(total_opex),
+            "total_purchases": int(total_purchases),
+            "total_admin": int(total_admin),
+            "total_salaries": int(total_salaries_base),
+            "gross_profit": int(gross_operating_profit),
+            "net_profit": int(net_company_profit),
+            "cost_per_wash": cost_per_wash,
+            "profit_per_wash": profit_per_wash,
+            "payroll_ratio": payroll_ratio
+        },
+        "opex_breakdown": [{"category": k, "amount": v} for k, v in sorted(opex_breakdown.items(), key=lambda x: x[1], reverse=True)]
+    }
+
+# 11. Settings / Metadata Endpoints
+@app.get("/api/meta")
+def get_meta(db: Session = Depends(get_db)):
+    emps = [{"id": e.id, "name": e.name, "salary": int(e.basic_salary or 0)} for e in db.query(Employee).filter(Employee.is_active == True).all()]
+    cats = [c.name for c in db.query(ExpenseCategory).filter(ExpenseCategory.is_active == True).all()]
+    p_cats = [c.name for c in db.query(PurchaseCategory).filter(PurchaseCategory.is_active == True).all()]
+    a_cats = [c.name for c in db.query(AdminExpenseCategory).filter(AdminExpenseCategory.is_active == True).all()]
+    
+    if not cats: cats = ["سحوبات من المرتب", "سلفة", "باقة", "بنزين", "خامات", "صيانة موتسيكلات", "صيانة معدات", "مشتريات للسكن"]
+    if not p_cats: p_cats = ["شامبو وفوط", "صيانة ماكينات", "قطع غيار", "مشتريات عدد"]
+    if not a_cats: a_cats = ["إيجار مقر", "محامي ومستشار قانوني", "تجديد رخص وسجلات", "شراء أصول وموتوسيكلات"]
+
+    return {
+        "employees": emps,
+        "categories": sorted(list(set(cats))),
+        "purchase_categories": sorted(list(set(p_cats))),
+        "admin_categories": sorted(list(set(a_cats)))
+    }
+
+@app.post("/api/employees")
+def add_employee(name: str, salary: float = 0.0, db: Session = Depends(get_db)):
+    if name.strip():
+        db.add(Employee(name=name.strip(), basic_salary=salary))
+        db.commit()
+    return {"status": "ok"}
+
+@app.put("/api/employees/{emp_id}")
+def update_emp_salary(emp_id: int, salary: float, db: Session = Depends(get_db)):
+    emp = db.query(Employee).get(emp_id)
+    if emp:
+        emp.basic_salary = salary
+        db.commit()
+    return {"status": "ok"}
+
+@app.delete("/api/employees/{emp_id}")
+def delete_employee(emp_id: int, db: Session = Depends(get_db)):
+    db.query(Employee).filter(Employee.id == emp_id).delete()
+    db.commit()
     return {"status": "ok"}
 
 @app.post("/api/categories")
-def create_cat(name: str, db: Session = Depends(get_db)):
+def add_category(name: str, db: Session = Depends(get_db)):
     if name.strip(): db.add(ExpenseCategory(name=name.strip())); db.commit()
     return {"status": "ok"}
 
 @app.delete("/api/categories")
-def remove_cat(name: str, db: Session = Depends(get_db)):
+def delete_category(name: str, db: Session = Depends(get_db)):
     db.query(ExpenseCategory).filter(ExpenseCategory.name == name).delete(); db.commit()
     return {"status": "ok"}
 
 @app.post("/api/purchase-categories")
-def create_p_cat(name: str, db: Session = Depends(get_db)):
+def add_p_category(name: str, db: Session = Depends(get_db)):
     if name.strip(): db.add(PurchaseCategory(name=name.strip())); db.commit()
     return {"status": "ok"}
 
 @app.delete("/api/purchase-categories")
-def remove_p_cat(name: str, db: Session = Depends(get_db)):
+def delete_p_category(name: str, db: Session = Depends(get_db)):
     db.query(PurchaseCategory).filter(PurchaseCategory.name == name).delete(); db.commit()
     return {"status": "ok"}
 
-@app.post("/api/initial-balances")
-def set_balances(region_id: int, date_str: str, inside: float, cash_tr: float, insta_tr: float, db: Session = Depends(get_db)):
-    t_d = datetime.strptime(date_str, "%Y-%m-%d").date()
-    day = db.query(BusinessDay).filter(BusinessDay.region_id == region_id, BusinessDay.business_date == t_d).first()
-    if not day:
-        day = BusinessDay(region_id=region_id, business_date=t_d, status="OPEN")
-        db.add(day)
-    day.opening_inside, day.opening_cash_treasury, day.opening_insta_treasury = inside, cash_tr, insta_tr
-    db.commit()
+@app.post("/api/admin-categories")
+def add_a_category(name: str, db: Session = Depends(get_db)):
+    if name.strip(): db.add(AdminExpenseCategory(name=name.strip())); db.commit()
+    return {"status": "ok"}
+
+@app.delete("/api/admin-categories")
+def delete_a_category(name: str, db: Session = Depends(get_db)):
+    db.query(AdminExpenseCategory).filter(AdminExpenseCategory.name == name).delete(); db.commit()
     return {"status": "ok"}
