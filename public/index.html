@@ -243,18 +243,27 @@
 
   <!-- ================= 2. TREASURY & EXPENSES (العهدة والمصروفات) ================= -->
   <div v-if="!loading && activeTab === 'treasury'" class="space-y-4">
-    <!-- 4 Top KPI Cards -->
+    <!-- 4 Top KPI Cards (The Unified Treasury Flow) -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-      <!-- 1. عهدة بداية اليوم -->
-      <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center">
+      <!-- 1. عهدة بداية اليوم (ترحيل آلي من الأمس) -->
+      <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center relative overflow-hidden">
         <div class="flex items-center justify-between mb-1">
           <span class="text-[11px] text-slate-500 font-bold">1. عهدة بداية اليوم</span>
           <button @click="showEditTreasuryModal = true" class="text-[10px] text-orange-600 font-bold hover:underline">تعديل ✏️</button>
         </div>
         <span class="text-lg font-black text-slate-900">{{ formatNum(daySummary?.day?.opening_treasury) }}</span>
+        <div class="text-[10px] mt-1 flex items-center justify-center gap-1 font-bold">
+          <span v-if="!daySummary?.day?.is_manual_opening" class="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+            🔄 من متبقي الأمس تلقائياً
+          </span>
+          <span v-else class="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+            ✏️ يدوي
+            <button @click="resetToAutoOpening" title="إعادة الربط التلقائي بمتبقي الأمس" class="text-slate-500 hover:text-orange-600 underline text-[9px] mr-1">استعادة الآلي</button>
+          </span>
+        </div>
       </div>
 
-      <!-- 2. كاش اليوم المحصل -->
+      <!-- 2. كاش اليوم المحصل (Live from Bookings) -->
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center">
         <span class="text-[11px] text-slate-500 font-bold block mb-1">2. كاش الحجوزات المحصل</span>
         <span class="text-lg font-black text-emerald-600">{{ formatNum(daySummary?.day?.cash_collected) }}</span>
@@ -441,18 +450,15 @@
             <h3 class="font-black text-slate-900 text-sm">👤 {{ adv.name }}</h3>
             <span class="text-xs text-slate-500">المرتب الأساسي: {{ formatNum(adv.basic_salary) }} ج.م</span>
           </div>
-          <!-- Status Badge -->
           <span :class="riskBadgeClass(adv.status_color)" class="px-2.5 py-1 rounded-full text-xs font-bold border">
             {{ adv.draw_ratio }}% من الراتب
           </span>
         </div>
 
-        <!-- Progress Bar -->
         <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
           <div :class="progressBarClass(adv.status_color)" :style="{ width: Math.min(100, adv.draw_ratio) + '%' }" class="h-full transition-all duration-500"></div>
         </div>
 
-        <!-- Breakdown Numbers -->
         <div class="grid grid-cols-3 gap-2 text-center text-xs pt-1">
           <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
             <span class="text-[10px] text-slate-500 block">سحوبات الشهر</span>
@@ -468,7 +474,6 @@
           </div>
         </div>
 
-        <!-- Loan Installment Settle Input -->
         <div class="flex items-center gap-2 pt-1 border-t border-slate-100">
           <input type="number" v-model.number="adv.new_installment" placeholder="حدد قسط سلفة هذا الشهر..." class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 outline-none">
           <button @click="saveLoanInstallment(adv)" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition">
@@ -476,7 +481,6 @@
           </button>
         </div>
 
-        <!-- History Accordion -->
         <div class="pt-1">
           <button @click="adv.showHistory = !adv.showHistory" class="text-xs text-slate-500 hover:text-slate-800 font-bold flex items-center gap-1">
             <span>{{ adv.showHistory ? '▲ إخفاء سجل السحب' : '▼ عرض تفاصيل السحوبات بالتاريخ' }}</span>
@@ -834,7 +838,7 @@
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
         <h3 class="text-sm font-bold text-slate-900">✏️ تعديل أرصدة العهدة المباشرة</h3>
         <div>
-          <label class="text-[11px] text-slate-500 font-bold block mb-1">عهدة بداية اليوم (المتبقي من أمس):</label>
+          <label class="text-[11px] text-slate-500 font-bold block mb-1">عهدة بداية اليوم:</label>
           <input type="number" v-model.number="editOpeningTr" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm font-black text-slate-900 outline-none">
         </div>
         <div>
@@ -1345,6 +1349,13 @@
         loadDayData();
       };
 
+      const resetToAutoOpening = async () => {
+        if (confirm('إعادة ربط عهدة البداية تلقائياً بمتبقي الأمس؟')) {
+          await fetch(`/api/reset-opening-treasury?shift_date=${shiftDate.value}`, { method: 'POST' });
+          loadDayData();
+        }
+      };
+
       const openExpenseModal = () => {
         expenseForm.value = { branch: 'عام', person_entity: meta.value.employees[0]?.name || 'عام', expense_type: meta.value.categories[0] || 'بنزين', amount: null, description: '' };
         showExpenseModal.value = true;
@@ -1419,7 +1430,7 @@
         }
       };
 
-      // Advances & Loans Modal Management
+      // Advances & Loans
       const openAdvanceModal = () => {
         advanceForm.value = {
           person_entity: meta.value.employees[0]?.name || '',
@@ -1590,7 +1601,7 @@
       return {
         activeTab, loading, shiftDate, daySummary, meta,
         bookingsList, filterBookingBranch, searchBookingText, showWalkInModal, walkInForm, filteredBookings,
-        expensesList, showExpenseModal, expenseForm, showEditTreasuryModal, editOpeningTr, editTransferTr,
+        expensesList, showExpenseModal, expenseForm, showEditTreasuryModal, editOpeningTr, editTransferTr, resetToAutoOpening,
         penaltiesList, showPenaltyModal, penaltyForm,
         leavesList, showLeaveModal, leaveForm,
         showAdvanceModal, advanceForm, openAdvanceModal, saveAdvance,
