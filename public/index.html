@@ -53,7 +53,6 @@
       </div>
     </div>
     
-    <!-- محدد التاريخ التفاعلي في أعلى الصفحة -->
     <div class="flex items-center gap-1.5 bg-slate-100 border border-slate-200 p-1 rounded-2xl shadow-inner">
       <button @click="changeDayOffset(-1)" title="اليوم السابق" class="w-7 h-7 flex items-center justify-center rounded-xl bg-white text-slate-700 hover:text-orange-600 hover:bg-orange-50 font-black text-xs shadow-sm transition">
         ◀
@@ -229,7 +228,7 @@
     </div>
   </div>
 
-  <!-- ================= 2. TREASURY & EXPENSES (العهدة والمصروفات) ================= -->
+  <!-- ================= 2. TREASURY & EXPENSES ================= -->
   <div v-if="!loading && activeTab === 'treasury'" class="space-y-4">
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center relative overflow-hidden">
@@ -322,7 +321,7 @@
     </div>
   </div>
 
-  <!-- ================= 3. PENALTIES (الخصومات) ================= -->
+  <!-- ================= 3. PENALTIES ================= -->
   <div v-if="!loading && activeTab === 'penalties'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
       <div>
@@ -358,7 +357,7 @@
     </div>
   </div>
 
-  <!-- ================= 4. LEAVES (الإجازات) ================= -->
+  <!-- ================= 4. LEAVES ================= -->
   <div v-if="!loading && activeTab === 'leaves'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
       <div>
@@ -398,10 +397,10 @@
     </div>
   </div>
 
-  <!-- ================= 5. ADVANCES & LOANS (السحوبات والسلف بالتصميم التفاعلي الجديد) ================= -->
+  <!-- ================= 5. ADVANCES & LOANS ================= -->
   <div v-if="!loading && activeTab === 'advances'" class="space-y-4">
     
-    <!-- المربع العلوي: إجمالي مديونيات وسلف الموظفين بالكامل (قابل للنقر لعرض التفاصيل) -->
+    <!-- المربع العلوي: إجمالي مديونيات وسلف الموظفين بالكامل (قابل للنقر) -->
     <div class="bg-gradient-to-r from-orange-600 to-amber-600 text-white p-4 sm:p-5 rounded-3xl shadow-lg">
       <div class="flex items-center justify-between mb-3.5 flex-wrap gap-2">
         <div>
@@ -418,13 +417,13 @@
         </div>
       </div>
 
-      <!-- الكروت العلوية الثلاثة مع ميزة النقر على كرت السلف -->
+      <!-- الكروت العلوية الثلاثة -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center">
-        <!-- كرت السلف الكلي (قابل للنقر) -->
+        <!-- كرت السلف الكلي (قابل للنقر لفتح الكشف) -->
         <div @click="showLoansDetailsModal = true" class="bg-white/15 hover:bg-white/25 cursor-pointer backdrop-blur-md rounded-2xl p-3 border border-white/30 transition transform hover:-translate-y-0.5 shadow-sm group">
           <div class="flex items-center justify-center gap-1.5 mb-1">
             <span class="text-xs text-orange-100 font-bold">💰 إجمالي السلف القائمة على الموظفين</span>
-            <span class="text-[10px] bg-white text-orange-700 font-black px-1.5 py-0.5 rounded-full group-hover:scale-105 transition">اضغط للتفاصيل 👁️</span>
+            <span class="text-[10px] bg-white text-orange-700 font-black px-2 py-0.5 rounded-full group-hover:scale-105 transition shadow-sm">اضغط للتفاصيل 👁️</span>
           </div>
           <span class="text-2xl font-black block">{{ formatNum(payrollData.loans_summary?.total_outstanding_loans) }} ج.م</span>
         </div>
@@ -441,7 +440,7 @@
       </div>
     </div>
 
-    <!-- Cards Grid with Progress Bars & Editable Installments -->
+    <!-- Cards Grid with Progress Bars & Direct Loan Edit Buttons -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div v-for="adv in payrollData.advances_overview" :key="adv.name" class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
         <div class="flex items-center justify-between">
@@ -461,49 +460,58 @@
           <div :class="progressBarClass(adv.status_color)" :style="{ width: Math.min(100, adv.draw_ratio) + '%' }" class="h-full transition-all duration-500"></div>
         </div>
 
-        <!-- أرقام التفاصيل -->
+        <!-- أرقام التفاصيل وزر تعديل السلفة المباشر -->
         <div class="grid grid-cols-3 gap-2 text-center text-xs pt-1">
           <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
             <span class="text-[10px] text-slate-500 block">سحوبات الشهر</span>
             <span class="font-bold text-slate-800">{{ formatNum(adv.monthly_draws) }}</span>
           </div>
           
-          <!-- صندوق قسط السلفة مع زر التعديل المباشر -->
-          <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 relative group">
+          <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
             <span class="text-[10px] text-slate-500 block">قسط السلفة</span>
             <div class="flex items-center justify-center gap-1">
               <span class="font-bold text-slate-800">{{ formatNum(adv.loan_installment) }}</span>
-              <button v-if="adv.loan_installment > 0" @click="editExistingInstallment(adv)" title="تعديل أو إلغاء القسط" class="text-[10px] text-orange-600 hover:underline font-bold">
+              <button v-if="adv.loan_installment > 0" @click="editExistingInstallment(adv)" title="تعديل القسط" class="text-[10px] text-orange-600 hover:underline font-bold">
                 ✏️
               </button>
             </div>
           </div>
 
-          <div class="bg-orange-50/70 p-2 rounded-xl border border-orange-100">
-            <span class="text-[10px] text-orange-800 block font-bold">باقي سلفته الكلية</span>
-            <span class="font-black text-orange-600">{{ formatNum(adv.total_loan_debt) }}</span>
+          <!-- هنا زر تعديل السلفة الكلية بوضوح فائق -->
+          <div class="bg-orange-50/80 p-2 rounded-xl border border-orange-200 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-0.5">
+              <span class="text-[10px] text-orange-900 font-bold">باقي السلفة</span>
+              <button @click="openEditLoanModal(adv)" title="تعديل سلفة الموظف" class="text-[10px] bg-white text-orange-700 hover:bg-orange-100 border border-orange-300 px-1.5 py-0.5 rounded font-black shadow-2xs">
+                تعديل ✏️
+              </button>
+            </div>
+            <span class="font-black text-orange-600 text-sm">{{ formatNum(adv.total_loan_debt) }}</span>
           </div>
         </div>
 
-        <!-- حقل تحديد / تعديل قسط السلفة -->
+        <!-- حقل قسط الشهر وتعديله -->
         <div class="flex items-center gap-2 pt-1 border-t border-slate-100">
-          <input type="number" v-model.number="adv.new_installment" :placeholder="adv.loan_installment > 0 ? 'تعديل القسط (' + adv.loan_installment + ')...' : 'حدد قسط سلفة هذا الشهر...'" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 outline-none">
+          <input type="number" v-model.number="adv.new_installment" :placeholder="adv.loan_installment > 0 ? 'تعديل القسط الحالي (' + adv.loan_installment + ')...' : 'حدد قسط سلفة هذا الشهر...'" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 outline-none">
           <button @click="saveOrUpdateInstallment(adv)" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition shadow">
             {{ adv.loan_installment > 0 ? 'تعديل القسط 💾' : 'اعتماد القسط 💾' }}
           </button>
-          <button v-if="adv.loan_installment > 0" @click="cancelInstallment(adv)" title="إلغاء القسط تماماً لهذا الشهر" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs px-2 py-1.5 rounded-xl transition">
+          <button v-if="adv.loan_installment > 0" @click="cancelInstallment(adv)" title="إلغاء قسط هذا الشهر" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs px-2 py-1.5 rounded-xl transition">
             إلغاء ✕
           </button>
         </div>
 
+        <!-- سجل السحوبات مع إمكانية حذف أي حركة بالخطأ -->
         <div class="pt-1">
           <button @click="adv.showHistory = !adv.showHistory" class="text-xs text-slate-500 hover:text-slate-800 font-bold flex items-center gap-1">
             <span>{{ adv.showHistory ? '▲ إخفاء سجل السحب' : '▼ عرض تفاصيل السحوبات بالتاريخ' }}</span>
           </button>
           <div v-if="adv.showHistory" class="mt-2 space-y-1 max-h-36 overflow-y-auto border border-slate-100 p-2 rounded-xl bg-slate-50 text-[11px]">
-            <div v-for="(h, i) in adv.history" :key="i" class="flex justify-between py-1 border-b border-slate-200/50">
+            <div v-for="(h, i) in adv.history" :key="i" class="flex justify-between items-center py-1 border-b border-slate-200/50">
               <span>📅 {{ h.date }} | {{ h.type }} <span class="text-slate-400">({{ h.notes }})</span></span>
-              <span class="font-bold text-rose-600">{{ formatNum(h.amount) }} ج.م</span>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-rose-600">{{ formatNum(h.amount) }} ج.م</span>
+                <button v-if="h.id" @click="deleteHistoryExpense(h.id)" title="حذف هذه الحركة" class="text-rose-400 hover:text-rose-700 font-bold text-xs">✕</button>
+              </div>
             </div>
             <div v-if="!adv.history.length" class="text-center text-slate-400 py-1">لا توجد مسحوبات مسجلة.</div>
           </div>
@@ -512,7 +520,7 @@
     </div>
   </div>
 
-  <!-- ================= 6. PAYROLL (المرتبات) ================= -->
+  <!-- ================= 6. PAYROLL ================= -->
   <div v-if="!loading && activeTab === 'payroll'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between flex-wrap gap-2">
       <div>
@@ -572,7 +580,7 @@
     </div>
   </div>
 
-  <!-- ================= 7. PURCHASES & MAINTENANCE (المشتريات والصيانة) ================= -->
+  <!-- ================= 7. PURCHASES & MAINTENANCE ================= -->
   <div v-if="!loading && activeTab === 'purchases'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
       <div>
@@ -610,7 +618,7 @@
     </div>
   </div>
 
-  <!-- ================= 8. ADMIN EXPENSES (مصروفات إدارية) ================= -->
+  <!-- ================= 8. ADMIN EXPENSES ================= -->
   <div v-if="!loading && activeTab === 'admin_exp'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
       <div>
@@ -749,7 +757,7 @@
     </div>
   </div>
 
-  <!-- ================= 10. SETTINGS (الضبط) ================= -->
+  <!-- ================= 10. SETTINGS ================= -->
   <div v-if="!loading && activeTab === 'settings'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
       <h3 class="text-sm font-bold text-slate-900">👨‍🔧 إدارة الموظفين والراتب الأساسي والسلفة القديمة</h3>
@@ -814,14 +822,14 @@
 
   <!-- ================= MODALS ================= -->
 
-  <!-- 1. نافذة كشف تفاصيل سلف الموظفين (تفتح عند الضغط على الكرت العلوي) -->
+  <!-- 1. نافذة كشف تفاصيل سلف الموظفين مع زر تعديل أمام كل موظف -->
   <teleport to="body">
     <div v-if="showLoansDetailsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-2xl space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <div>
             <h3 class="text-sm font-black text-slate-900">📋 كشف حساب وتفاصيل سلف الموظفين</h3>
-            <p class="text-xs text-slate-500">بيان تفصيلي لكل موظف: السلف القديمة والجديدة والمسدد والمتبقي المستحق.</p>
+            <p class="text-xs text-slate-500">بيان تفصيلي لكل موظف مع إمكانية تعديل السلفة فوراً.</p>
           </div>
           <button @click="showLoansDetailsModal = false" class="text-slate-400 hover:text-slate-700 font-black text-lg p-1">✕</button>
         </div>
@@ -835,7 +843,7 @@
                 <th class="py-2.5 px-3">سلف جديدة</th>
                 <th class="py-2.5 px-3">المسدد كلياً</th>
                 <th class="py-2.5 px-3 text-orange-600 font-black">باقي السلفة المستحق</th>
-                <th class="py-2.5 px-3">قسط هذا الشهر</th>
+                <th class="py-2.5 px-3 text-center">تعديل</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -845,11 +853,10 @@
                 <td class="py-2.5 px-3 text-slate-600">{{ formatNum(adv.new_loans_total) }} ج.م</td>
                 <td class="py-2.5 px-3 text-emerald-600 font-bold">{{ formatNum(adv.settled_total) }} ج.م</td>
                 <td class="py-2.5 px-3 font-black text-orange-600 text-sm">{{ formatNum(adv.total_loan_debt) }} ج.م</td>
-                <td class="py-2.5 px-3">
-                  <span v-if="adv.loan_installment > 0" class="bg-orange-50 text-orange-700 px-2 py-0.5 rounded font-bold border border-orange-200">
-                    {{ formatNum(adv.loan_installment) }} ج.م
-                  </span>
-                  <span v-else class="text-slate-400">0</span>
+                <td class="py-2.5 px-3 text-center">
+                  <button @click="openEditLoanModal(adv)" class="bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 px-2.5 py-1 rounded-lg text-xs font-bold transition">
+                    ✏️ تعديل
+                  </button>
                 </td>
               </tr>
             </tbody>
@@ -871,7 +878,25 @@
     </div>
   </teleport>
 
-  <!-- 2. مودال إضافة رصيد سلفة قديم قبل إنشاء الأداة -->
+  <!-- 2. نافذة تعديل سلفة موظف محدد (تفتح عند الضغط على زر تعديل السلفة) -->
+  <teleport to="body">
+    <div v-if="showEditLoanModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
+        <h3 class="text-sm font-bold text-slate-900">✏️ تعديل سلفة الموظف: {{ editingAdv?.name }}</h3>
+        <p class="text-[11px] text-slate-500">يمكنك تعديل رصيد السلفة القديم (قبل السيستم) لتصحيح مديونية الموظف فوراً دون المساس بكاش الدرج اليوم.</p>
+        <div>
+          <label class="text-[11px] text-slate-500 font-bold block mb-1">قيمة السلفة القديمة (ج.م):</label>
+          <input type="number" v-model.number="editingAdv.initial_loan_debt" placeholder="0" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button @click="saveEditedLoan" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 rounded-xl text-xs transition shadow">حفظ التعديل 💾</button>
+          <button @click="showEditLoanModal = false" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  </teleport>
+
+  <!-- 3. مودال إضافة رصيد سلفة قديم عام -->
   <teleport to="body">
     <div v-if="showInitialLoanModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
@@ -1267,6 +1292,10 @@
       // تفاصيل السلف بالكامل (المودال التفاعلي الجديد)
       const showLoansDetailsModal = ref(false);
 
+      // مودال تعديل سلفة موظف محدد المباشر
+      const showEditLoanModal = ref(false);
+      const editingAdv = ref(null);
+
       // Purchases & Admin Exp State
       const purchasesList = ref([]);
       const showPurchaseModal = ref(false);
@@ -1642,6 +1671,30 @@
         loadMeta();
       };
 
+      // زر فتح تعديل سلفة موظف محدد المباشر
+      const openEditLoanModal = (adv) => {
+        editingAdv.value = { ...adv };
+        showEditLoanModal.value = true;
+      };
+
+      const saveEditedLoan = async () => {
+        if (editingAdv.value.initial_loan_debt === null || editingAdv.value.initial_loan_debt < 0) {
+          return alert('اكتب قيمة السلفة');
+        }
+        await fetch('/api/set-initial-loan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employee_name: editingAdv.value.name,
+            amount: editingAdv.value.initial_loan_debt
+          })
+        });
+        alert(`✅ تم تعديل سلفة الموظف ${editingAdv.value.name} بنجاح!`);
+        showEditLoanModal.value = false;
+        loadPayroll();
+        loadMeta();
+      };
+
       // تعديل وإلغاء قسط السلفة المرن
       const editExistingInstallment = (adv) => {
         adv.new_installment = adv.loan_installment;
@@ -1677,6 +1730,14 @@
             })
           });
           loadPayroll();
+        }
+      };
+
+      const deleteHistoryExpense = async (expId) => {
+        if (confirm('حذف حركة السلفة/المسحوبات هذه نهائياً؟')) {
+          await fetch(`/api/expenses/${expId}`, { method: 'DELETE' });
+          loadPayroll();
+          loadDayData();
         }
       };
 
@@ -1823,7 +1884,8 @@
         leavesList, showLeaveModal, leaveForm,
         showAdvanceModal, advanceForm, openAdvanceModal, saveAdvance,
         showInitialLoanModal, initialLoanForm, saveInitialLoan,
-        showLoansDetailsModal, editExistingInstallment, saveOrUpdateInstallment, cancelInstallment,
+        showLoansDetailsModal, showEditLoanModal, editingAdv, openEditLoanModal, saveEditedLoan,
+        editExistingInstallment, saveOrUpdateInstallment, cancelInstallment, deleteHistoryExpense,
         purchasesList, showPurchaseModal, purchaseForm,
         adminExpList, showAdminExpModal, adminExpForm,
         payrollData, reportStart, reportEnd, companyBI,
