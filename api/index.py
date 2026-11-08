@@ -321,7 +321,6 @@ class InitialLoanIn(BaseModel):
     employee_name: str
     amount: float
 
-# نموذج لتعديل قسط السلفة الشهري بسلاسة
 class SetInstallmentIn(BaseModel):
     employee_name: str
     amount: float
@@ -771,7 +770,6 @@ def set_initial_loan(payload: InitialLoanIn, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# تعديل / تعيين قسط السلفة لشهر معين بكل مرونة
 @app.post("/api/set-loan-installment")
 def set_loan_installment(payload: SetInstallmentIn, db: Session = Depends(get_db)):
     t_d = datetime.strptime(payload.shift_date, "%Y-%m-%d").date()
@@ -781,7 +779,6 @@ def set_loan_installment(payload: SetInstallmentIn, db: Session = Depends(get_db
     else:
         e_month = date(s_month.year, s_month.month + 1, 1) - timedelta(days=1)
 
-    # البحث عن أي قسط مسجل لهذا الموظف في هذا الشهر
     existing = db.query(Settlement).filter(
         Settlement.name == payload.employee_name.strip(),
         Settlement.entity_type == "employee",
@@ -848,7 +845,14 @@ def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(g
             draw_ratio = (total_deductions_this_month / b_salary * 100) if b_salary > 0 else 0
             status_color = "green" if draw_ratio <= 35 else ("yellow" if draw_ratio <= 65 else "red")
             
-            emp_history = [{"date": e.expense_date.strftime("%Y-%m-%d"), "amount": int(e.amount), "type": e.expense_type, "notes": e.description or ""} for e in expenses if e.person_entity == emp.name and ("سلف" in e.expense_type or "سحوبات" in e.expense_type)]
+            # تم إضافة id للحركة لتمكين الحذف المباشر لأي سلفة أو سحب مسجل
+            emp_history = [{
+                "id": e.id,
+                "date": e.expense_date.strftime("%Y-%m-%d"), 
+                "amount": int(e.amount), 
+                "type": e.expense_type, 
+                "notes": e.description or ""
+            } for e in expenses if e.person_entity == emp.name and ("سلف" in e.expense_type or "سحوبات" in e.expense_type)]
 
             advances_overview.append({
                 "name": emp.name, 
