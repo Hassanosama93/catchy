@@ -114,7 +114,7 @@
 
   <!-- ================= 1. BOOKINGS (الحجوزات) ================= -->
   <div v-if="!loading && activeTab === 'bookings'" class="space-y-4">
-    <!-- Top 3 Revenue Cards (Collected Only!) -->
+    <!-- Top 3 Revenue Cards -->
     <div class="grid grid-cols-3 gap-2.5">
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl text-center shadow-sm">
         <span class="text-xs text-slate-500 font-bold block mb-1">💵 كاش اليوم (المحصل)</span>
@@ -130,7 +130,7 @@
       </div>
     </div>
 
-    <!-- Action Toolbar (Excel Upload, Manual Walk-in, Search, Export) -->
+    <!-- Action Toolbar -->
     <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
@@ -162,25 +162,13 @@
 
     <!-- Color Legend -->
     <div class="flex items-center gap-3 text-[11px] font-bold text-slate-500 px-1 flex-wrap">
-      <span class="flex items-center gap-1">
-        <span class="w-3 h-3 rounded-full bg-white border border-slate-300"></span>
-        انتظار
-      </span>
-      <span class="flex items-center gap-1">
-        <span class="w-3 h-3 rounded-full bg-amber-400"></span>
-        غسيل تم (معلق بدون تحصيل)
-      </span>
-      <span class="flex items-center gap-1">
-        <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
-        تم التحصيل والدفع
-      </span>
-      <span class="flex items-center gap-1">
-        <span class="w-3 h-3 rounded-full bg-rose-500"></span>
-        ملغي (Cancel)
-      </span>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-white border border-slate-300"></span> انتظار</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-amber-400"></span> غسيل تم (معلق بدون تحصيل)</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> تم التحصيل والدفع</span>
+      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-rose-500"></span> ملغي (Cancel)</span>
     </div>
 
-    <!-- Bookings Table with Smart Colors & Notes Column -->
+    <!-- Bookings Table -->
     <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
       <div v-if="filteredBookings.length" class="overflow-x-auto">
         <table class="w-full text-right text-xs">
@@ -246,15 +234,13 @@
           </tbody>
         </table>
       </div>
-      <div v-else class="text-center py-10 text-slate-400 text-xs">لا توجد حجوزات مسجلة في هذا اليوم. ارفع شيت إكسيل أو أضف حجزاً يدوياً.</div>
+      <div v-else class="text-center py-10 text-slate-400 text-xs">لا توجد حجوزات مسجلة في هذا اليوم.</div>
     </div>
   </div>
 
   <!-- ================= 2. TREASURY & EXPENSES (العهدة والمصروفات) ================= -->
   <div v-if="!loading && activeTab === 'treasury'" class="space-y-4">
-    <!-- 4 Top KPI Cards -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-      <!-- 1. عهدة بداية اليوم (ترحيل آلي من متبقي الأمس) -->
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center relative overflow-hidden">
         <div class="flex items-center justify-between mb-1">
           <span class="text-[11px] text-slate-500 font-bold">1. عهدة بداية اليوم</span>
@@ -272,13 +258,11 @@
         </div>
       </div>
 
-      <!-- 2. كاش اليوم المحصل -->
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center">
         <span class="text-[11px] text-slate-500 font-bold block mb-1">2. كاش الحجوزات المحصل</span>
         <span class="text-lg font-black text-emerald-600">{{ formatNum(daySummary?.day?.cash_collected) }}</span>
       </div>
 
-      <!-- 3. عهدة تحويل تزويد -->
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm text-center">
         <div class="flex items-center justify-between mb-1">
           <span class="text-[11px] text-slate-500 font-bold">3. عهدة تحويل (تزويد)</span>
@@ -287,7 +271,6 @@
         <span class="text-lg font-black text-purple-600">{{ formatNum(daySummary?.day?.transfer_treasury) }}</span>
       </div>
 
-      <!-- 4. إجمالي العهدة المجمعة -->
       <div class="bg-orange-500 text-white p-3.5 rounded-2xl shadow-sm text-center">
         <span class="text-[11px] text-orange-100 font-bold block mb-1">4. إجمالي العهدة في حوزتك</span>
         <span class="text-xl font-black">{{ formatNum(daySummary?.day?.total_treasury) }}</span>
@@ -306,7 +289,6 @@
         </button>
       </div>
 
-      <!-- Expenses List -->
       <div v-if="expensesList.length" class="overflow-x-auto border border-slate-100 rounded-xl">
         <table class="w-full text-right text-xs">
           <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
@@ -338,7 +320,6 @@
       <div v-else class="text-center py-6 text-slate-400 text-xs">لم يتم تسجيل أي مصروفات اليوم.</div>
     </div>
 
-    <!-- Bottom Final Balance Card -->
     <div class="bg-slate-900 text-white p-4 rounded-2xl flex items-center justify-between shadow-lg">
       <div>
         <span class="text-xs text-slate-400 font-bold block">المتبقي الفعلي في الخزينة والدرج الآن:</span>
@@ -355,7 +336,7 @@
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
       <div>
         <h2 class="text-sm font-bold text-slate-900">⚠️ الخصومات والجزاءات الإدارية</h2>
-        <p class="text-xs text-slate-500">استقطاع إداري على الموظف يُخصم مباشرة من راتبه نهاية الشهر (لا ينقص كاش الدرج).</p>
+        <p class="text-xs text-slate-500">استقطاع إداري على الموظف يُخصم مباشرة من راتبه نهاية الشهر.</p>
       </div>
       <div class="flex gap-2">
         <button @click="openPenaltyModal" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow">+ تسجيل خصم جديد</button>
@@ -368,11 +349,7 @@
         <table class="w-full text-right text-xs">
           <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
             <tr>
-              <th class="py-3 px-3">التاريخ</th>
-              <th class="py-3 px-3">الموظف</th>
-              <th class="py-3 px-3">مبلغ الخصم</th>
-              <th class="py-3 px-3">السبب / الملاحظات</th>
-              <th class="py-3 px-3">حذف</th>
+              <th class="py-3 px-3">التاريخ</th><th class="py-3 px-3">الموظف</th><th class="py-3 px-3">مبلغ الخصم</th><th class="py-3 px-3">السبب / الملاحظات</th><th class="py-3 px-3">حذف</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
@@ -408,11 +385,7 @@
         <table class="w-full text-right text-xs">
           <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
             <tr>
-              <th class="py-3 px-3">التاريخ</th>
-              <th class="py-3 px-3">الموظف</th>
-              <th class="py-3 px-3">نوع الإجازة</th>
-              <th class="py-3 px-3">الملاحظات</th>
-              <th class="py-3 px-3">حذف</th>
+              <th class="py-3 px-3">التاريخ</th><th class="py-3 px-3">الموظف</th><th class="py-3 px-3">نوع الإجازة</th><th class="py-3 px-3">الملاحظات</th><th class="py-3 px-3">حذف</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
@@ -434,20 +407,41 @@
     </div>
   </div>
 
-  <!-- ================= 5. ADVANCES & LOANS (السحوبات والسلف) ================= -->
+  <!-- ================= 5. ADVANCES & LOANS (السحوبات والسلف مع المربع الإحصائي والسلف القديمة) ================= -->
   <div v-if="!loading && activeTab === 'advances'" class="space-y-4">
-    <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between flex-wrap gap-2">
-      <div>
-        <h2 class="text-sm font-bold text-slate-900">💳 مؤشر خطورة مسحوبات وسلف الموظفين</h2>
-        <p class="text-xs text-slate-500">🟢 آمن (حتى 35%) | 🟡 تحذير (35%-65%) | 🔴 خطر تجاوز الراتب (>65%)</p>
+    
+    <!-- المربع العلوي: إجمالي مديونيات وسلف الموظفين بالكامل -->
+    <div class="bg-gradient-to-r from-orange-600 to-amber-600 text-white p-4 rounded-3xl shadow-md">
+      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <h2 class="text-base font-black">💼 الخزينة المركزية لسلف الموظفين</h2>
+          <p class="text-xs text-orange-100 font-medium">متابعة إجمالي ديون السلف ومسحوبات الشهر الجاري</p>
+        </div>
+        <div class="flex gap-2">
+          <!-- زر تسجيل سلفة قديمة قبل إنشاء الأداة -->
+          <button @click="showInitialLoanModal = true" class="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-bold text-xs px-3.5 py-2 rounded-xl transition border border-white/30 flex items-center gap-1">
+            ⏱️ رصيد سلفة قديم (قبل السيستم)
+          </button>
+          <!-- زر سلفة جديدة لليوم -->
+          <button @click="openAdvanceModal" class="bg-white text-orange-700 hover:bg-orange-50 font-black text-xs px-3.5 py-2 rounded-xl transition shadow flex items-center gap-1">
+            + سلفة جديدة اليوم
+          </button>
+        </div>
       </div>
-      <div class="flex items-center gap-2">
-        <button @click="openAdvanceModal" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow flex items-center gap-1.5">
-          + تسجيل سلفة جديدة
-        </button>
-        <button @click="exportToExcel(payrollData.advances_overview, 'مسحوبات_وسلف_الموظفين')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition">
-          📥 تصدير Excel
-        </button>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center">
+        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-2.5 border border-white/20">
+          <span class="text-[11px] text-orange-100 block mb-0.5">💰 إجمالي السلف القائمة على كل الموظفين</span>
+          <span class="text-xl font-black">{{ formatNum(payrollData.loans_summary?.total_outstanding_loans) }} ج.م</span>
+        </div>
+        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-2.5 border border-white/20">
+          <span class="text-[11px] text-orange-100 block mb-0.5">📉 سحوبات الموظفين هذا الشهر</span>
+          <span class="text-xl font-black">{{ formatNum(payrollData.loans_summary?.total_monthly_draws) }} ج.م</span>
+        </div>
+        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-2.5 border border-white/20">
+          <span class="text-[11px] text-orange-100 block mb-0.5">💳 أقساط سداد السلف المعتمدة للشهر</span>
+          <span class="text-xl font-black">{{ formatNum(payrollData.loans_summary?.total_monthly_installments) }} ج.م</span>
+        </div>
       </div>
     </div>
 
@@ -458,6 +452,9 @@
           <div>
             <h3 class="font-black text-slate-900 text-sm">👤 {{ adv.name }}</h3>
             <span class="text-xs text-slate-500">المرتب الأساسي: {{ formatNum(adv.basic_salary) }} ج.م</span>
+            <div v-if="adv.initial_loan_debt > 0" class="text-[10px] text-amber-600 font-bold mt-0.5">
+              ⚠️ سلفة قديمة قبل السيستم: {{ formatNum(adv.initial_loan_debt) }} ج.م
+            </div>
           </div>
           <span :class="riskBadgeClass(adv.status_color)" class="px-2.5 py-1 rounded-full text-xs font-bold border">
             {{ adv.draw_ratio }}% من الراتب
@@ -609,7 +606,7 @@
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
       <div>
         <h2 class="text-sm font-bold text-slate-900">🏛️ مصروفات الشركة العامة والإدارية</h2>
-        <p class="text-xs text-slate-500">إيجار، محامي، رسوم حكومية، أصول (تدفعها الشركة مباشرة ولا تؤثر على عهدتك).</p>
+        <p class="text-xs text-slate-500">إيجار، محامي، رسوم حكومية، أصول (تدفعها الشركة مباشرة).</p>
       </div>
       <div class="flex gap-2">
         <button @click="showAdminExpModal = true" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow">+ إضافة مصروف إداري</button>
@@ -641,7 +638,7 @@
     </div>
   </div>
 
-  <!-- ================= 9. COMPANY BI REPORTS (تقارير الشركة) ================= -->
+  <!-- ================= 9. COMPANY BI REPORTS (تقارير الشركة وقائمة تفصيل كل مليم خرج) ================= -->
   <div v-if="!loading && activeTab === 'reports'" class="space-y-4">
     <!-- Filter Presets -->
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
@@ -659,7 +656,7 @@
       </div>
       <div class="flex gap-2">
         <button @click="loadCompanyBI" class="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs py-2.5 rounded-xl transition shadow">تحديث لوحة التحليل 🔄</button>
-        <button @click="exportToExcel([companyBI?.kpis], 'المؤشرات_المالية')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition">📥 Excel</button>
+        <button @click="exportToExcel(companyBI?.outflows_breakdown, 'تفصيل_المصروفات_الخارجة')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-4 py-2.5 rounded-xl transition">📥 Excel</button>
       </div>
     </div>
 
@@ -704,43 +701,68 @@
         </div>
       </div>
 
-      <!-- 3 Decision-Making KPIs -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div class="bg-white border border-slate-200 p-4 rounded-2xl text-center shadow-sm">
-          <span class="text-xs text-slate-500 font-bold block mb-1">نسبة تكلفة المرتبات من الدخل</span>
-          <span :class="companyBI.kpis.payroll_ratio > 60 ? 'text-rose-600' : 'text-emerald-600'" class="text-xl font-black">{{ companyBI.kpis.payroll_ratio }}%</span>
-          <span class="text-[10px] text-slate-400 block mt-0.5">{{ companyBI.kpis.payroll_ratio > 60 ? '⚠️ نسبة مرتفعة' : '✅ في النطاق الصحي' }}</span>
+      <!-- ================= جديد: التقرير المفصل لكل مليم خرج (الخارج بالتفصيل) ================= -->
+      <div class="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+          <div>
+            <h3 class="text-sm font-black text-slate-900">💸 تفصيل كل بند في الخارج (أين ذهبت أموال الشركة؟)</h3>
+            <p class="text-xs text-slate-500">تفصيل كامل ودقيق يشمل البنزين، الصيانات، الخامات، السلف، المرتبات، الإيجارات، إلخ.</p>
+          </div>
+          <span class="bg-rose-50 border border-rose-200 text-rose-700 text-xs font-black px-3 py-1.5 rounded-xl">
+            إجمالي المنصرف: {{ formatNum(companyBI.kpis.total_outflows) }} ج.م
+          </span>
         </div>
-        <div class="bg-white border border-slate-200 p-4 rounded-2xl text-center shadow-sm">
-          <span class="text-xs text-slate-500 font-bold block mb-1">تكلفة تشغيل الغسلة الواحدة</span>
-          <span class="text-xl font-black text-slate-800">{{ companyBI.kpis.cost_per_wash }} ج.م</span>
-          <span class="text-[10px] text-slate-400 block mt-0.5">بنزين وخامات وصيانة</span>
-        </div>
-        <div class="bg-white border border-slate-200 p-4 rounded-2xl text-center shadow-sm">
-          <span class="text-xs text-slate-500 font-bold block mb-1">صافي ربح الغسلة الواحدة</span>
-          <span class="text-xl font-black text-orange-600">{{ companyBI.kpis.profit_per_wash }} ج.م</span>
-          <span class="text-[10px] text-slate-400 block mt-0.5">بعد خصم التكلفة المباشرة</span>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-right text-xs">
+            <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+              <tr>
+                <th class="py-2.5 px-3">بند المصروف</th>
+                <th class="py-2.5 px-3">المبلغ المنصرف</th>
+                <th class="py-2.5 px-3">النسبة من إجمالي الخارج</th>
+                <th class="py-2.5 px-3">المؤشر البياني</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="item in companyBI.outflows_breakdown" :key="item.category" class="hover:bg-slate-50">
+                <td class="py-2.5 px-3 font-bold text-slate-900">{{ item.category }}</td>
+                <td class="py-2.5 px-3 font-black text-rose-600 text-sm">{{ formatNum(item.amount) }} ج.م</td>
+                <td class="py-2.5 px-3 font-bold text-slate-700">{{ item.percentage }}%</td>
+                <td class="py-2.5 px-3 w-40">
+                  <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                    <div class="bg-orange-500 h-full rounded-full" :style="{ width: item.percentage + '%' }"></div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
+
     </div>
   </div>
 
   <!-- ================= 10. SETTINGS (الضبط) ================= -->
   <div v-if="!loading && activeTab === 'settings'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
-      <h3 class="text-sm font-bold text-slate-900">👨‍🔧 إدارة الموظفين والراتب الأساسي</h3>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <h3 class="text-sm font-bold text-slate-900">👨‍🔧 إدارة الموظفين والراتب الأساسي والسلفة القديمة</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
         <input v-model="newEmpName" placeholder="اسم الموظف الجديد..." class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none">
-        <input type="number" v-model.number="newEmpSalary" placeholder="الراتب الأساسي (ج.م)..." class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none">
+        <input type="number" v-model.number="newEmpSalary" placeholder="الراتب الأساسي..." class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none">
+        <input type="number" v-model.number="newEmpInitialLoan" placeholder="سلفة قديمة (إن وجدت)..." class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 outline-none">
         <button @click="addEmployee" class="bg-orange-500 hover:bg-orange-600 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow">إضافة موظف</button>
       </div>
+      
       <div class="divide-y divide-slate-100 border border-slate-100 rounded-xl overflow-hidden mt-3">
-        <div v-for="emp in meta.employees" :key="emp.id" class="p-2.5 flex items-center justify-between text-xs bg-slate-50/50">
+        <div v-for="emp in meta.employees" :key="emp.id" class="p-2.5 flex items-center justify-between text-xs bg-slate-50/50 flex-wrap gap-2">
           <span class="font-bold text-slate-900">👤 {{ emp.name }}</span>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
             <span class="text-slate-500">الراتب:</span>
-            <input type="number" v-model.number="emp.salary" @change="updateEmpSalary(emp)" class="w-24 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 outline-none">
-            <span class="text-slate-500">ج.م</span>
+            <input type="number" v-model.number="emp.salary" @change="updateEmpSalary(emp)" class="w-20 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 outline-none">
+            
+            <span class="text-slate-500 mr-2">سلفة قديمة:</span>
+            <input type="number" v-model.number="emp.initial_loan_debt" @change="updateEmpSalary(emp)" class="w-20 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-amber-600 outline-none">
+            
             <button @click="deleteEmployee(emp.id)" class="text-rose-500 hover:text-rose-700 mr-2">❌</button>
           </div>
         </div>
@@ -784,7 +806,32 @@
   </nav>
 
   <!-- ================= MODALS ================= -->
-  <!-- 1. Walk-in Booking Modal -->
+
+  <!-- مودال إضافة رصيد سلفة قديم قبل إنشاء الأداة -->
+  <teleport to="body">
+    <div v-if="showInitialLoanModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
+        <h3 class="text-sm font-bold text-slate-900">⏱️ تسجيل سلفة قديمة (قبل السيستم)</h3>
+        <p class="text-[11px] text-slate-500">هذا المبلغ يضاف لمديونية الموظف لتقسيطه وسداده، ولا يخصم من كاش الوردية أو الدرج اليوم.</p>
+        <div>
+          <label class="text-[11px] text-slate-500 font-bold block mb-1">الموظف:</label>
+          <select v-model="initialLoanForm.employee_name" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-2 py-2 text-xs">
+            <option v-for="emp in meta.employees" :key="emp.name" :value="emp.name">{{ emp.name }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-500 font-bold block mb-1">إجمالي السلفة القديمة المستحقة عليه (ج.م):</label>
+          <input type="number" v-model.number="initialLoanForm.amount" placeholder="اكتب المبلغ..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold outline-none">
+        </div>
+        <div class="flex gap-2 pt-2">
+          <button @click="saveInitialLoan" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 rounded-xl text-xs transition shadow">حفظ السلفة القديمة 💾</button>
+          <button @click="showInitialLoanModal = false" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 rounded-xl text-xs">إلغاء</button>
+        </div>
+      </div>
+    </div>
+  </teleport>
+
+  <!-- Walk-in Booking Modal -->
   <teleport to="body">
     <div v-if="showWalkInModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-md space-y-3 shadow-2xl">
@@ -841,7 +888,7 @@
     </div>
   </teleport>
 
-  <!-- 2. Edit Treasury Modal -->
+  <!-- Edit Treasury Modal -->
   <teleport to="body">
     <div v-if="showEditTreasuryModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
@@ -862,7 +909,7 @@
     </div>
   </teleport>
 
-  <!-- 3. Expense Modal -->
+  <!-- Expense Modal -->
   <teleport to="body">
     <div v-if="showExpenseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-md space-y-3 shadow-2xl">
@@ -908,7 +955,7 @@
     </div>
   </teleport>
 
-  <!-- 4. Penalty Modal -->
+  <!-- Penalty Modal -->
   <teleport to="body">
     <div v-if="showPenaltyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
@@ -935,7 +982,7 @@
     </div>
   </teleport>
 
-  <!-- 5. Leave Modal -->
+  <!-- Leave Modal -->
   <teleport to="body">
     <div v-if="showLeaveModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
@@ -970,7 +1017,7 @@
     </div>
   </teleport>
 
-  <!-- 6. Advance Modal (تسجيل سلفة موظف جديدة) -->
+  <!-- Advance Modal -->
   <teleport to="body">
     <div v-if="showAdvanceModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
@@ -1020,7 +1067,7 @@
     </div>
   </teleport>
 
-  <!-- 7. Purchase Modal -->
+  <!-- Purchase Modal -->
   <teleport to="body">
     <div v-if="showPurchaseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-md space-y-3 shadow-2xl">
@@ -1063,7 +1110,7 @@
     </div>
   </teleport>
 
-  <!-- 8. Admin Expense Modal -->
+  <!-- Admin Expense Modal -->
   <teleport to="body">
     <div v-if="showAdminExpModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-md space-y-3 shadow-2xl">
@@ -1149,6 +1196,10 @@
       const showAdvanceModal = ref(false);
       const advanceForm = ref({ person_entity: '', expense_type: 'سلفة', amount: null, advance_date: new Date().toISOString().split('T')[0], branch: 'عام', notes: '' });
 
+      // Initial Loan Modal State (السلف القديمة قبل السيستم)
+      const showInitialLoanModal = ref(false);
+      const initialLoanForm = ref({ employee_name: '', amount: null });
+
       // Purchases & Admin Exp State
       const purchasesList = ref([]);
       const showPurchaseModal = ref(false);
@@ -1159,7 +1210,7 @@
       const adminExpForm = ref({ expense_date: new Date().toISOString().split('T')[0], category: '', amount: null, payment_method: 'حساب بنكي', description: '' });
 
       // Payroll State
-      const payrollData = ref({ advances_overview: [], payroll_table: [] });
+      const payrollData = ref({ advances_overview: [], payroll_table: [], loans_summary: {} });
 
       // Reports State
       const now = new Date();
@@ -1170,6 +1221,7 @@
       // Settings State
       const newEmpName = ref('');
       const newEmpSalary = ref(null);
+      const newEmpInitialLoan = ref(null);
       const newCatName = ref('');
 
       // Helpers & Formatters
@@ -1270,6 +1322,7 @@
           penaltyForm.value.employee_name = meta.value.employees[0].name;
           leaveForm.value.employee_name = meta.value.employees[0].name;
           advanceForm.value.person_entity = meta.value.employees[0].name;
+          initialLoanForm.value.employee_name = meta.value.employees[0].name;
         }
         if (meta.value.categories.length) expenseForm.value.expense_type = meta.value.categories[0];
         if (meta.value.purchase_categories.length) purchaseForm.value.category = meta.value.purchase_categories[0];
@@ -1487,6 +1540,20 @@
         loadPayroll();
       };
 
+      // تسجيل سلفة قديمة قبل إنشاء الأداة
+      const saveInitialLoan = async () => {
+        if (initialLoanForm.value.amount === null || initialLoanForm.value.amount < 0) return alert('اكتب قيمة السلفة');
+        await fetch('/api/set-initial-loan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(initialLoanForm.value)
+        });
+        alert(`✅ تم تسجيل رصيد السلفة القديم للموظف ${initialLoanForm.value.employee_name} بنجاح!`);
+        showInitialLoanModal.value = false;
+        loadPayroll();
+        loadMeta();
+      };
+
       // Purchases & Admin Exp
       const loadPurchases = async () => {
         const res = await fetch('/api/purchases');
@@ -1582,14 +1649,15 @@
       // Settings
       const addEmployee = async () => {
         if (!newEmpName.value.trim()) return;
-        await fetch(`/api/employees?name=${encodeURIComponent(newEmpName.value)}&salary=${newEmpSalary.value || 0}`, { method: 'POST' });
+        await fetch(`/api/employees?name=${encodeURIComponent(newEmpName.value)}&salary=${newEmpSalary.value || 0}&initial_loan=${newEmpInitialLoan.value || 0}`, { method: 'POST' });
         newEmpName.value = '';
         newEmpSalary.value = null;
+        newEmpInitialLoan.value = null;
         loadMeta();
       };
 
       const updateEmpSalary = async (emp) => {
-        await fetch(`/api/employees/${emp.id}?salary=${emp.salary || 0}`, { method: 'PUT' });
+        await fetch(`/api/employees/${emp.id}?salary=${emp.salary || 0}&initial_loan=${emp.initial_loan_debt || 0}`, { method: 'PUT' });
       };
 
       const deleteEmployee = async (id) => {
@@ -1627,10 +1695,11 @@
         penaltiesList, showPenaltyModal, penaltyForm,
         leavesList, showLeaveModal, leaveForm,
         showAdvanceModal, advanceForm, openAdvanceModal, saveAdvance,
+        showInitialLoanModal, initialLoanForm, saveInitialLoan,
         purchasesList, showPurchaseModal, purchaseForm,
         adminExpList, showAdminExpModal, adminExpForm,
         payrollData, reportStart, reportEnd, companyBI,
-        newEmpName, newEmpSalary, newCatName,
+        newEmpName, newEmpSalary, newEmpInitialLoan, newCatName,
         formatNum, tabClass, bookingRowClass, riskBadgeClass, progressBarClass, setDatePreset, exportPDF, exportToExcel, switchTab,
         changeDayOffset, onHeaderDateChange,
         loadDayData, quickUpdateBooking, openWalkInModal, saveWalkIn, deleteBooking, handleExcelUpload,
