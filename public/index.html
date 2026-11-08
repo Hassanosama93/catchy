@@ -159,14 +159,6 @@
       </div>
     </div>
 
-    <!-- Color Legend -->
-    <div class="flex items-center gap-3 text-[11px] font-bold text-slate-500 px-1 flex-wrap">
-      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-white border border-slate-300"></span> انتظار</span>
-      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-amber-400"></span> غسيل تم (معلق بدون تحصيل)</span>
-      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-emerald-500"></span> تم التحصيل والدفع</span>
-      <span class="flex items-center gap-1"><span class="w-3 h-3 rounded-full bg-rose-500"></span> ملغي (Cancel)</span>
-    </div>
-
     <!-- Bookings Table -->
     <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
       <div v-if="filteredBookings.length" class="overflow-x-auto">
@@ -276,7 +268,7 @@
       </div>
     </div>
 
-    <!-- Expenses Form & Actions -->
+    <!-- Expenses List -->
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
       <div class="flex items-center justify-between">
         <div>
@@ -406,17 +398,18 @@
     </div>
   </div>
 
-  <!-- ================= 5. ADVANCES & LOANS ================= -->
+  <!-- ================= 5. ADVANCES & LOANS (السحوبات والسلف بالتصميم التفاعلي الجديد) ================= -->
   <div v-if="!loading && activeTab === 'advances'" class="space-y-4">
-    <!-- المربع العلوي: إجمالي مديونيات وسلف الموظفين بالكامل -->
-    <div class="bg-gradient-to-r from-orange-600 to-amber-600 text-white p-4 rounded-3xl shadow-md">
-      <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+    
+    <!-- المربع العلوي: إجمالي مديونيات وسلف الموظفين بالكامل (قابل للنقر لعرض التفاصيل) -->
+    <div class="bg-gradient-to-r from-orange-600 to-amber-600 text-white p-4 sm:p-5 rounded-3xl shadow-lg">
+      <div class="flex items-center justify-between mb-3.5 flex-wrap gap-2">
         <div>
           <h2 class="text-base font-black">💼 الخزينة المركزية لسلف الموظفين</h2>
           <p class="text-xs text-orange-100 font-medium">متابعة إجمالي ديون السلف ومسحوبات الشهر الجاري</p>
         </div>
         <div class="flex gap-2">
-          <button @click="showInitialLoanModal = true" class="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-bold text-xs px-3.5 py-2 rounded-xl transition border border-white/30 flex items-center gap-1">
+          <button @click="showInitialLoanModal = true" class="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-bold text-xs px-3.5 py-2 rounded-xl transition border border-white/30 flex items-center gap-1 shadow-sm">
             ⏱️ رصيد سلفة قديم (قبل السيستم)
           </button>
           <button @click="openAdvanceModal" class="bg-white text-orange-700 hover:bg-orange-50 font-black text-xs px-3.5 py-2 rounded-xl transition shadow flex items-center gap-1">
@@ -425,23 +418,30 @@
         </div>
       </div>
 
+      <!-- الكروت العلوية الثلاثة مع ميزة النقر على كرت السلف -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center">
-        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-2.5 border border-white/20">
-          <span class="text-[11px] text-orange-100 block mb-0.5">💰 إجمالي السلف القائمة على كل الموظفين</span>
-          <span class="text-xl font-black">{{ formatNum(payrollData.loans_summary?.total_outstanding_loans) }} ج.م</span>
+        <!-- كرت السلف الكلي (قابل للنقر) -->
+        <div @click="showLoansDetailsModal = true" class="bg-white/15 hover:bg-white/25 cursor-pointer backdrop-blur-md rounded-2xl p-3 border border-white/30 transition transform hover:-translate-y-0.5 shadow-sm group">
+          <div class="flex items-center justify-center gap-1.5 mb-1">
+            <span class="text-xs text-orange-100 font-bold">💰 إجمالي السلف القائمة على الموظفين</span>
+            <span class="text-[10px] bg-white text-orange-700 font-black px-1.5 py-0.5 rounded-full group-hover:scale-105 transition">اضغط للتفاصيل 👁️</span>
+          </div>
+          <span class="text-2xl font-black block">{{ formatNum(payrollData.loans_summary?.total_outstanding_loans) }} ج.م</span>
         </div>
-        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-2.5 border border-white/20">
-          <span class="text-[11px] text-orange-100 block mb-0.5">📉 سحوبات الموظفين هذا الشهر</span>
-          <span class="text-xl font-black">{{ formatNum(payrollData.loans_summary?.total_monthly_draws) }} ج.م</span>
+
+        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/20">
+          <span class="text-xs text-orange-100 block mb-1 font-bold">📉 سحوبات الموظفين هذا الشهر</span>
+          <span class="text-2xl font-black block">{{ formatNum(payrollData.loans_summary?.total_monthly_draws) }} ج.م</span>
         </div>
-        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-2.5 border border-white/20">
-          <span class="text-[11px] text-orange-100 block mb-0.5">💳 أقساط سداد السلف المعتمدة للشهر</span>
-          <span class="text-xl font-black">{{ formatNum(payrollData.loans_summary?.total_monthly_installments) }} ج.م</span>
+
+        <div class="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/20">
+          <span class="text-xs text-orange-100 block mb-1 font-bold">💳 أقساط سداد السلف المعتمدة للشهر</span>
+          <span class="text-2xl font-black block">{{ formatNum(payrollData.loans_summary?.total_monthly_installments) }} ج.م</span>
         </div>
       </div>
     </div>
 
-    <!-- Cards Grid -->
+    <!-- Cards Grid with Progress Bars & Editable Installments -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div v-for="adv in payrollData.advances_overview" :key="adv.name" class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
         <div class="flex items-center justify-between">
@@ -461,25 +461,38 @@
           <div :class="progressBarClass(adv.status_color)" :style="{ width: Math.min(100, adv.draw_ratio) + '%' }" class="h-full transition-all duration-500"></div>
         </div>
 
+        <!-- أرقام التفاصيل -->
         <div class="grid grid-cols-3 gap-2 text-center text-xs pt-1">
           <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
             <span class="text-[10px] text-slate-500 block">سحوبات الشهر</span>
             <span class="font-bold text-slate-800">{{ formatNum(adv.monthly_draws) }}</span>
           </div>
-          <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
+          
+          <!-- صندوق قسط السلفة مع زر التعديل المباشر -->
+          <div class="bg-slate-50 p-2 rounded-xl border border-slate-100 relative group">
             <span class="text-[10px] text-slate-500 block">قسط السلفة</span>
-            <span class="font-bold text-slate-800">{{ formatNum(adv.loan_installment) }}</span>
+            <div class="flex items-center justify-center gap-1">
+              <span class="font-bold text-slate-800">{{ formatNum(adv.loan_installment) }}</span>
+              <button v-if="adv.loan_installment > 0" @click="editExistingInstallment(adv)" title="تعديل أو إلغاء القسط" class="text-[10px] text-orange-600 hover:underline font-bold">
+                ✏️
+              </button>
+            </div>
           </div>
+
           <div class="bg-orange-50/70 p-2 rounded-xl border border-orange-100">
             <span class="text-[10px] text-orange-800 block font-bold">باقي سلفته الكلية</span>
             <span class="font-black text-orange-600">{{ formatNum(adv.total_loan_debt) }}</span>
           </div>
         </div>
 
+        <!-- حقل تحديد / تعديل قسط السلفة -->
         <div class="flex items-center gap-2 pt-1 border-t border-slate-100">
-          <input type="number" v-model.number="adv.new_installment" placeholder="حدد قسط سلفة هذا الشهر..." class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 outline-none">
-          <button @click="saveLoanInstallment(adv)" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition">
-            اعتماد القسط 💾
+          <input type="number" v-model.number="adv.new_installment" :placeholder="adv.loan_installment > 0 ? 'تعديل القسط (' + adv.loan_installment + ')...' : 'حدد قسط سلفة هذا الشهر...'" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 outline-none">
+          <button @click="saveOrUpdateInstallment(adv)" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition shadow">
+            {{ adv.loan_installment > 0 ? 'تعديل القسط 💾' : 'اعتماد القسط 💾' }}
+          </button>
+          <button v-if="adv.loan_installment > 0" @click="cancelInstallment(adv)" title="إلغاء القسط تماماً لهذا الشهر" class="bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold text-xs px-2 py-1.5 rounded-xl transition">
+            إلغاء ✕
           </button>
         </div>
 
@@ -801,7 +814,64 @@
 
   <!-- ================= MODALS ================= -->
 
-  <!-- مودال إضافة رصيد سلفة قديم قبل إنشاء الأداة -->
+  <!-- 1. نافذة كشف تفاصيل سلف الموظفين (تفتح عند الضغط على الكرت العلوي) -->
+  <teleport to="body">
+    <div v-if="showLoansDetailsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-2xl space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 class="text-sm font-black text-slate-900">📋 كشف حساب وتفاصيل سلف الموظفين</h3>
+            <p class="text-xs text-slate-500">بيان تفصيلي لكل موظف: السلف القديمة والجديدة والمسدد والمتبقي المستحق.</p>
+          </div>
+          <button @click="showLoansDetailsModal = false" class="text-slate-400 hover:text-slate-700 font-black text-lg p-1">✕</button>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-right text-xs">
+            <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+              <tr>
+                <th class="py-2.5 px-3">الموظف</th>
+                <th class="py-2.5 px-3">سلفة قديمة</th>
+                <th class="py-2.5 px-3">سلف جديدة</th>
+                <th class="py-2.5 px-3">المسدد كلياً</th>
+                <th class="py-2.5 px-3 text-orange-600 font-black">باقي السلفة المستحق</th>
+                <th class="py-2.5 px-3">قسط هذا الشهر</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-for="adv in payrollData.advances_overview" :key="adv.name" class="hover:bg-slate-50">
+                <td class="py-2.5 px-3 font-bold text-slate-900">{{ adv.name }}</td>
+                <td class="py-2.5 px-3 text-slate-600">{{ formatNum(adv.initial_loan_debt) }} ج.م</td>
+                <td class="py-2.5 px-3 text-slate-600">{{ formatNum(adv.new_loans_total) }} ج.م</td>
+                <td class="py-2.5 px-3 text-emerald-600 font-bold">{{ formatNum(adv.settled_total) }} ج.م</td>
+                <td class="py-2.5 px-3 font-black text-orange-600 text-sm">{{ formatNum(adv.total_loan_debt) }} ج.م</td>
+                <td class="py-2.5 px-3">
+                  <span v-if="adv.loan_installment > 0" class="bg-orange-50 text-orange-700 px-2 py-0.5 rounded font-bold border border-orange-200">
+                    {{ formatNum(adv.loan_installment) }} ج.م
+                  </span>
+                  <span v-else class="text-slate-400">0</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+          <span class="text-xs font-black text-slate-700">إجمالي ديون السلف: {{ formatNum(payrollData.loans_summary?.total_outstanding_loans) }} ج.م</span>
+          <div class="flex gap-2">
+            <button @click="exportToExcel(payrollData.advances_overview, 'كشف_سلف_الموظفين')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3.5 py-2 rounded-xl transition">
+              📥 Excel
+            </button>
+            <button @click="showLoansDetailsModal = false" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow">
+              إغلاق
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </teleport>
+
+  <!-- 2. مودال إضافة رصيد سلفة قديم قبل إنشاء الأداة -->
   <teleport to="body">
     <div v-if="showInitialLoanModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
@@ -1194,6 +1264,9 @@
       const showInitialLoanModal = ref(false);
       const initialLoanForm = ref({ employee_name: '', amount: null });
 
+      // تفاصيل السلف بالكامل (المودال التفاعلي الجديد)
+      const showLoansDetailsModal = ref(false);
+
       // Purchases & Admin Exp State
       const purchasesList = ref([]);
       const showPurchaseModal = ref(false);
@@ -1521,7 +1594,7 @@
         }
       };
 
-      // Advances & Initial Loans
+      // Advances & Loans
       const openAdvanceModal = () => {
         advanceForm.value = {
           person_entity: meta.value.employees[0]?.name || '',
@@ -1567,6 +1640,44 @@
         showInitialLoanModal.value = false;
         loadPayroll();
         loadMeta();
+      };
+
+      // تعديل وإلغاء قسط السلفة المرن
+      const editExistingInstallment = (adv) => {
+        adv.new_installment = adv.loan_installment;
+      };
+
+      const saveOrUpdateInstallment = async (adv) => {
+        if (adv.new_installment === undefined || adv.new_installment === null || adv.new_installment < 0) {
+          return alert('اكتب قيمة القسط أو 0 للإلغاء');
+        }
+        await fetch('/api/set-loan-installment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employee_name: adv.name,
+            amount: adv.new_installment,
+            shift_date: shiftDate.value
+          })
+        });
+        alert(`✅ تم تحديث قسط السلفة للموظف ${adv.name} بقيمة ${formatNum(adv.new_installment)} ج.م`);
+        adv.new_installment = null;
+        loadPayroll();
+      };
+
+      const cancelInstallment = async (adv) => {
+        if (confirm(`إلغاء قسط السلفة لهذا الشهر للموظف ${adv.name}؟`)) {
+          await fetch('/api/set-loan-installment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              employee_name: adv.name,
+              amount: 0,
+              shift_date: shiftDate.value
+            })
+          });
+          loadPayroll();
+        }
       };
 
       // Purchases & Admin Exp
@@ -1625,24 +1736,6 @@
         } catch (e) {
           console.error("Payroll load error:", e);
         }
-      };
-
-      const saveLoanInstallment = async (adv) => {
-        if (!adv.new_installment || adv.new_installment <= 0) return alert('اكتب قيمة القسط');
-        await fetch('/api/settlements', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            entity_type: 'employee',
-            name: adv.name,
-            amount: adv.new_installment,
-            settlement_date: shiftDate.value,
-            notes: 'قسط سداد سلفة للشهر'
-          })
-        });
-        alert(`تم اعتماد قسط سلفة للموظف ${adv.name} بقيمة ${formatNum(adv.new_installment)} ج.م`);
-        adv.new_installment = null;
-        loadPayroll();
       };
 
       // WhatsApp Slip
@@ -1710,7 +1803,6 @@
         }
       };
 
-      // التشغيل الآمن عند تحميل الصفحة
       onMounted(async () => {
         loading.value = true;
         try {
@@ -1731,6 +1823,7 @@
         leavesList, showLeaveModal, leaveForm,
         showAdvanceModal, advanceForm, openAdvanceModal, saveAdvance,
         showInitialLoanModal, initialLoanForm, saveInitialLoan,
+        showLoansDetailsModal, editExistingInstallment, saveOrUpdateInstallment, cancelInstallment,
         purchasesList, showPurchaseModal, purchaseForm,
         adminExpList, showAdminExpModal, adminExpForm,
         payrollData, reportStart, reportEnd, companyBI,
@@ -1743,7 +1836,7 @@
         loadLeaves, openLeaveModal, saveLeave, deleteLeave,
         loadPurchases, savePurchase, deletePurchase,
         loadAdminExp, saveAdminExp, deleteAdminExp,
-        loadPayroll, saveLoanInstallment, sendWhatsAppSlip,
+        loadPayroll, sendWhatsAppSlip,
         loadCompanyBI, addEmployee, updateEmpSalary, deleteEmployee, addCategory, deleteCategory
       };
     }
