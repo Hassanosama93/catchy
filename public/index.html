@@ -114,7 +114,6 @@
 
   <!-- ================= 1. BOOKINGS (الحجوزات) ================= -->
   <div v-if="!loading && activeTab === 'bookings'" class="space-y-4">
-    <!-- Top 3 Revenue Cards -->
     <div class="grid grid-cols-3 gap-2.5">
       <div class="bg-white border border-slate-200 p-3.5 rounded-2xl text-center shadow-sm">
         <span class="text-xs text-slate-500 font-bold block mb-1">💵 كاش اليوم (المحصل)</span>
@@ -407,9 +406,8 @@
     </div>
   </div>
 
-  <!-- ================= 5. ADVANCES & LOANS (السحوبات والسلف مع المربع الإحصائي والسلف القديمة) ================= -->
+  <!-- ================= 5. ADVANCES & LOANS ================= -->
   <div v-if="!loading && activeTab === 'advances'" class="space-y-4">
-    
     <!-- المربع العلوي: إجمالي مديونيات وسلف الموظفين بالكامل -->
     <div class="bg-gradient-to-r from-orange-600 to-amber-600 text-white p-4 rounded-3xl shadow-md">
       <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -418,11 +416,9 @@
           <p class="text-xs text-orange-100 font-medium">متابعة إجمالي ديون السلف ومسحوبات الشهر الجاري</p>
         </div>
         <div class="flex gap-2">
-          <!-- زر تسجيل سلفة قديمة قبل إنشاء الأداة -->
           <button @click="showInitialLoanModal = true" class="bg-white/20 hover:bg-white/30 backdrop-blur-md text-white font-bold text-xs px-3.5 py-2 rounded-xl transition border border-white/30 flex items-center gap-1">
             ⏱️ رصيد سلفة قديم (قبل السيستم)
           </button>
-          <!-- زر سلفة جديدة لليوم -->
           <button @click="openAdvanceModal" class="bg-white text-orange-700 hover:bg-orange-50 font-black text-xs px-3.5 py-2 rounded-xl transition shadow flex items-center gap-1">
             + سلفة جديدة اليوم
           </button>
@@ -445,7 +441,7 @@
       </div>
     </div>
 
-    <!-- Cards Grid with Progress Bars & Accordion -->
+    <!-- Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div v-for="adv in payrollData.advances_overview" :key="adv.name" class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
         <div class="flex items-center justify-between">
@@ -638,9 +634,8 @@
     </div>
   </div>
 
-  <!-- ================= 9. COMPANY BI REPORTS (تقارير الشركة وقائمة تفصيل كل مليم خرج) ================= -->
+  <!-- ================= 9. COMPANY BI REPORTS ================= -->
   <div v-if="!loading && activeTab === 'reports'" class="space-y-4">
-    <!-- Filter Presets -->
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
       <div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-xs font-bold text-slate-600">📅 فترات سريعة:</span>
@@ -701,7 +696,7 @@
         </div>
       </div>
 
-      <!-- ================= جديد: التقرير المفصل لكل مليم خرج (الخارج بالتفصيل) ================= -->
+      <!-- تفصيل كل مليم خرج -->
       <div class="bg-white border border-slate-200 p-5 rounded-3xl shadow-sm space-y-4">
         <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
           <div>
@@ -738,7 +733,6 @@
           </table>
         </div>
       </div>
-
     </div>
   </div>
 
@@ -1196,7 +1190,7 @@
       const showAdvanceModal = ref(false);
       const advanceForm = ref({ person_entity: '', expense_type: 'سلفة', amount: null, advance_date: new Date().toISOString().split('T')[0], branch: 'عام', notes: '' });
 
-      // Initial Loan Modal State (السلف القديمة قبل السيستم)
+      // Initial Loan Modal State
       const showInitialLoanModal = ref(false);
       const initialLoanForm = ref({ employee_name: '', amount: null });
 
@@ -1249,9 +1243,8 @@
         return 'bg-rose-500';
       };
 
-      // Filtered Bookings Computed
       const filteredBookings = computed(() => {
-        return bookingsList.value.filter(b => {
+        return (bookingsList.value || []).filter(b => {
           const matchBranch = filterBookingBranch.value === 'الكل' || b.branch === filterBookingBranch.value;
           const text = searchBookingText.value.toLowerCase().trim();
           const matchText = !text || 
@@ -1262,7 +1255,6 @@
         });
       });
 
-      // Header Date Switchers
       const changeDayOffset = (days) => {
         const d = new Date(shiftDate.value);
         d.setDate(d.getDate() + days);
@@ -1291,7 +1283,6 @@
 
       const exportPDF = () => window.print();
 
-      // Universal Instant Excel Export (SheetJS)
       const exportToExcel = (dataArray, fileName) => {
         if (!dataArray || !dataArray.length) return alert('لا توجد بيانات لتصديرها!');
         const worksheet = XLSX.utils.json_to_sheet(dataArray);
@@ -1300,7 +1291,6 @@
         XLSX.writeFile(workbook, `${fileName}_${new Date().toISOString().split('T')[0]}.xlsx`);
       };
 
-      // Navigation Tab Switcher
       const switchTab = (tab) => {
         activeTab.value = tab;
         if (tab === 'bookings') loadBookings();
@@ -1313,33 +1303,52 @@
         if (tab === 'reports') loadCompanyBI();
       };
 
-      // API Call Methods
+      // API Methods
       const loadMeta = async () => {
-        const res = await fetch('/api/meta');
-        meta.value = await res.json();
-        if (meta.value.employees.length) {
-          expenseForm.value.person_entity = meta.value.employees[0].name;
-          penaltyForm.value.employee_name = meta.value.employees[0].name;
-          leaveForm.value.employee_name = meta.value.employees[0].name;
-          advanceForm.value.person_entity = meta.value.employees[0].name;
-          initialLoanForm.value.employee_name = meta.value.employees[0].name;
+        try {
+          const res = await fetch('/api/meta');
+          const data = await res.json();
+          if (data && Array.isArray(data.employees)) {
+            meta.value = data;
+            if (meta.value.employees.length) {
+              expenseForm.value.person_entity = meta.value.employees[0].name;
+              penaltyForm.value.employee_name = meta.value.employees[0].name;
+              leaveForm.value.employee_name = meta.value.employees[0].name;
+              advanceForm.value.person_entity = meta.value.employees[0].name;
+              initialLoanForm.value.employee_name = meta.value.employees[0].name;
+            }
+            if (meta.value.categories?.length) expenseForm.value.expense_type = meta.value.categories[0];
+            if (meta.value.purchase_categories?.length) purchaseForm.value.category = meta.value.purchase_categories[0];
+            if (meta.value.admin_categories?.length) adminExpForm.value.category = meta.value.admin_categories[0];
+          }
+        } catch (e) {
+          console.error("Meta load error:", e);
         }
-        if (meta.value.categories.length) expenseForm.value.expense_type = meta.value.categories[0];
-        if (meta.value.purchase_categories.length) purchaseForm.value.category = meta.value.purchase_categories[0];
-        if (meta.value.admin_categories.length) adminExpForm.value.category = meta.value.admin_categories[0];
       };
 
       const loadDayData = async () => {
-        const res = await fetch(`/api/day-summary?date_str=${shiftDate.value}`);
-        daySummary.value = await res.json();
-        editOpeningTr.value = daySummary.value.day.opening_treasury;
-        editTransferTr.value = daySummary.value.day.transfer_treasury;
-        loadBookings();
+        try {
+          const res = await fetch(`/api/day-summary?date_str=${shiftDate.value}`);
+          const data = await res.json();
+          if (data && data.day) {
+            daySummary.value = data;
+            editOpeningTr.value = daySummary.value.day.opening_treasury;
+            editTransferTr.value = daySummary.value.day.transfer_treasury;
+          }
+          await loadBookings();
+        } catch (e) {
+          console.error("Day summary error:", e);
+        }
       };
 
       const loadBookings = async () => {
-        const res = await fetch(`/api/bookings?date_str=${shiftDate.value}`);
-        bookingsList.value = await res.json();
+        try {
+          const res = await fetch(`/api/bookings?date_str=${shiftDate.value}`);
+          const data = await res.json();
+          bookingsList.value = Array.isArray(data) ? data : [];
+        } catch (e) {
+          console.error("Bookings error:", e);
+        }
       };
 
       const quickUpdateBooking = async (b) => {
@@ -1403,11 +1412,16 @@
         reader.readAsBinaryString(file);
       };
 
-      // Treasury & Expenses
+      // Treasury
       const loadTreasury = async () => {
         loadDayData();
-        const res = await fetch(`/api/expenses?date_str=${shiftDate.value}`);
-        expensesList.value = await res.json();
+        try {
+          const res = await fetch(`/api/expenses?date_str=${shiftDate.value}`);
+          const data = await res.json();
+          expensesList.value = Array.isArray(data) ? data : [];
+        } catch (e) {
+          console.error("Treasury load error:", e);
+        }
       };
 
       const saveTreasuryBalances = async () => {
@@ -1457,7 +1471,8 @@
       // Penalties
       const loadPenalties = async () => {
         const res = await fetch('/api/penalties');
-        penaltiesList.value = await res.json();
+        const data = await res.json();
+        penaltiesList.value = Array.isArray(data) ? data : [];
       };
       const openPenaltyModal = () => {
         penaltyForm.value = { employee_name: meta.value.employees[0]?.name || '', amount: null, notes: '' };
@@ -1483,7 +1498,8 @@
       // Leaves
       const loadLeaves = async () => {
         const res = await fetch('/api/leaves');
-        leavesList.value = await res.json();
+        const data = await res.json();
+        leavesList.value = Array.isArray(data) ? data : [];
       };
       const openLeaveModal = () => {
         leaveForm.value = { employee_name: meta.value.employees[0]?.name || '', leave_type: 'من رصيده', leave_date: shiftDate.value, notes: '' };
@@ -1505,7 +1521,7 @@
         }
       };
 
-      // Advances & Loans
+      // Advances & Initial Loans
       const openAdvanceModal = () => {
         advanceForm.value = {
           person_entity: meta.value.employees[0]?.name || '',
@@ -1540,7 +1556,6 @@
         loadPayroll();
       };
 
-      // تسجيل سلفة قديمة قبل إنشاء الأداة
       const saveInitialLoan = async () => {
         if (initialLoanForm.value.amount === null || initialLoanForm.value.amount < 0) return alert('اكتب قيمة السلفة');
         await fetch('/api/set-initial-loan', {
@@ -1557,7 +1572,8 @@
       // Purchases & Admin Exp
       const loadPurchases = async () => {
         const res = await fetch('/api/purchases');
-        purchasesList.value = await res.json();
+        const data = await res.json();
+        purchasesList.value = Array.isArray(data) ? data : [];
       };
       const savePurchase = async () => {
         if (!purchaseForm.value.amount) return alert('اكتب المبلغ');
@@ -1578,7 +1594,8 @@
 
       const loadAdminExp = async () => {
         const res = await fetch('/api/admin-expenses');
-        adminExpList.value = await res.json();
+        const data = await res.json();
+        adminExpList.value = Array.isArray(data) ? data : [];
       };
       const saveAdminExp = async () => {
         if (!adminExpForm.value.amount) return alert('اكتب المبلغ');
@@ -1599,8 +1616,15 @@
 
       // Payroll
       const loadPayroll = async () => {
-        const res = await fetch(`/api/payroll-overview?start_date=${reportStart.value}&end_date=${reportEnd.value}`);
-        payrollData.value = await res.json();
+        try {
+          const res = await fetch(`/api/payroll-overview?start_date=${reportStart.value}&end_date=${reportEnd.value}`);
+          const data = await res.json();
+          if (data && data.advances_overview) {
+            payrollData.value = data;
+          }
+        } catch (e) {
+          console.error("Payroll load error:", e);
+        }
       };
 
       const saveLoanInstallment = async (adv) => {
@@ -1642,8 +1666,13 @@
 
       // Company BI Reports
       const loadCompanyBI = async () => {
-        const res = await fetch(`/api/company-bi?start_date=${reportStart.value}&end_date=${reportEnd.value}`);
-        companyBI.value = await res.json();
+        try {
+          const res = await fetch(`/api/company-bi?start_date=${reportStart.value}&end_date=${reportEnd.value}`);
+          const data = await res.json();
+          if (data && data.kpis) companyBI.value = data;
+        } catch (e) {
+          console.error("Company BI error:", e);
+        }
       };
 
       // Settings
@@ -1681,11 +1710,17 @@
         }
       };
 
+      // التشغيل الآمن عند تحميل الصفحة
       onMounted(async () => {
         loading.value = true;
-        await loadMeta();
-        await loadDayData();
-        loading.value = false;
+        try {
+          await loadMeta();
+          await loadDayData();
+        } catch (err) {
+          console.error("Mount error:", err);
+        } finally {
+          loading.value = false;
+        }
       });
 
       return {
