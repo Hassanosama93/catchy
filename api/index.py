@@ -156,7 +156,7 @@ class Settlement(Base):
     settlement_date = Column(Date, nullable=False)
     notes = Column(String, nullable=True)
 
-# ==================== 4. إعداد السيرفر والتحديث الآمن للجداول ====================
+# ==================== 4. إعداد السيرفر ====================
 app = FastAPI(title="Catchy Finance API")
 app.add_middleware(
     CORSMiddleware,
@@ -174,7 +174,6 @@ def ensure_tables():
         return
     try:
         Base.metadata.create_all(bind=engine)
-        # محاولة إضافة الأعمدة بأمان تام دون تعطيل السيستم
         with engine.connect() as conn:
             try:
                 conn.execute(text("ALTER TABLE business_days ADD COLUMN IF NOT EXISTS is_manual_opening BOOLEAN DEFAULT FALSE;"))
@@ -322,6 +321,12 @@ class InitialLoanIn(BaseModel):
     employee_name: str
     amount: float
 
+# نموذج لتعديل قسط السلفة الشهري بسلاسة
+class SetInstallmentIn(BaseModel):
+    employee_name: str
+    amount: float
+    shift_date: str
+
 # ==================== 6. ENDPOINTS ====================
 
 @app.get("/api/meta")
@@ -352,7 +357,6 @@ def get_meta(db: Session = Depends(get_db)):
             "admin_categories": sorted(list(set(a_cats)))
         }
     except Exception as e:
-        print("Meta error:", e)
         return {"employees": [], "categories": [], "purchase_categories": [], "admin_categories": []}
 
 @app.get("/api/day-summary")
@@ -416,7 +420,6 @@ def get_day_summary(date_str: str, db: Session = Depends(get_db)):
             }
         }
     except Exception as e:
-        print("Day summary error:", e)
         return {
             "day": {"opening_treasury": 0, "transfer_treasury": 0, "cash_collected": 0, "total_treasury": 0, "total_expenses": 0, "remaining_treasury": 0, "is_manual_opening": False},
             "revenue": {"cash": 0, "insta": 0, "total": 0}
@@ -756,7 +759,7 @@ def delete_leave(leave_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# ==================== إدارة السلف والرصيد الافتتاحي ====================
+# ==================== إدارة السلف والأقساط والتعديل ====================
 
 @app.post("/api/set-initial-loan")
 def set_initial_loan(payload: InitialLoanIn, db: Session = Depends(get_db)):
@@ -767,6 +770,44 @@ def set_initial_loan(payload: InitialLoanIn, db: Session = Depends(get_db)):
     emp.initial_loan_debt = payload.amount
     db.commit()
     return {"status": "ok"}
+
+# تعديل / تعيين قسط السلفة لشهر معين بكل مرونة
+@app.post("/api/set-loan-installment")
+def set_loan_installment(payload: SetInstallmentIn, db: Session = Depends(get_db)):
+    t_d = datetime.strptime(payload.shift_date, "%Y-%m-%d").date()
+    s_month = t_d.replace(day=1)
+    if s_month.month == 12:
+        e_month = date(s_month.year + 1, 1, 1) - timedelta(days=1)
+    else:
+        e_month = date(s_month.year, s_month.month + 1, 1) - timedelta(days=1)
+
+    # البحث عن أي قسط مسجل لهذا الموظف في هذا الشهر
+    existing = db.query(Settlement).filter(
+        Settlement.name == payload.employee_name.strip(),
+        Settlement.entity_type == "employee",
+        Settlement.settlement_date >= s_month,
+        Settlement.settlement_date <= e_month
+    ).first()
+
+    if payload.amount <= 0:
+        if existing:
+            db.delete(existing)
+            db.commit()
+        return {"status": "ok", "message": "تم إلغاء القسط"}
+
+    if existing:
+        existing.amount = payload.amount
+        existing.settlement_date = t_d
+    else:
+        db.add(Settlement(
+            entity_type="employee",
+            name=payload.employee_name.strip(),
+            amount=payload.amount,
+            settlement_date=t_d,
+            notes="قسط سداد سلفة"
+        ))
+    db.commit()
+    return {"status": "ok", "amount": payload.amount}
 
 @app.get("/api/payroll-overview")
 def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(get_db)):
@@ -795,7 +836,8 @@ def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(g
             unpaid_deduction = unpaid_days * daily_rate
 
             init_loan = float(getattr(emp, 'initial_loan_debt', 0) or 0)
-            total_loan_ever = init_loan + sum([float(e.amount) for e in all_loans if e.person_entity == emp.name])
+            new_loans_ever = sum([float(e.amount) for e in all_loans if e.person_entity == emp.name])
+            total_loan_ever = init_loan + new_loans_ever
             settled_loan_ever = sum([float(s.amount) for s in all_loan_settlements if s.name == emp.name])
             current_loan_debt = max(0, total_loan_ever - settled_loan_ever)
             this_month_settled = sum([float(s.amount) for s in settlements if s.name == emp.name])
@@ -812,6 +854,8 @@ def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(g
                 "name": emp.name, 
                 "basic_salary": int(b_salary), 
                 "initial_loan_debt": int(init_loan),
+                "new_loans_total": int(new_loans_ever),
+                "settled_total": int(settled_loan_ever),
                 "monthly_draws": int(emp_draws),
                 "loan_installment": int(this_month_settled), 
                 "total_monthly_commitment": int(total_deductions_this_month), 
@@ -847,7 +891,6 @@ def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(g
             }
         }
     except Exception as e:
-        print("Payroll error:", e)
         return {"advances_overview": [], "payroll_table": [], "loans_summary": {"total_outstanding_loans": 0, "total_monthly_draws": 0, "total_monthly_installments": 0}}
 
 @app.post("/api/settlements")
@@ -956,7 +999,6 @@ def get_company_bi(start_date: str, end_date: str, db: Session = Depends(get_db)
             "outflows_breakdown": outflows_list
         }
     except Exception as e:
-        print("Company BI error:", e)
         return {"kpis": {}, "outflows_breakdown": []}
 
 @app.post("/api/employees")
