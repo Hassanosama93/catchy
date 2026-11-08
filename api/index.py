@@ -62,7 +62,7 @@ class Employee(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True, nullable=False)
     basic_salary = Column(Numeric(10, 2), default=0.00)
-    initial_loan_debt = Column(Numeric(10, 2), default=0.00)  # السلف القديمة قبل السيستم
+    initial_loan_debt = Column(Numeric(10, 2), default=0.00)
     is_active = Column(Boolean, default=True)
 
 class ExpenseCategory(Base):
@@ -156,7 +156,7 @@ class Settlement(Base):
     settlement_date = Column(Date, nullable=False)
     notes = Column(String, nullable=True)
 
-# ==================== 4. إعداد السيرفر ودوال المساعدة ====================
+# ==================== 4. إعداد السيرفر والتحديث الآمن للجداول ====================
 app = FastAPI(title="Catchy Finance API")
 app.add_middleware(
     CORSMiddleware,
@@ -166,27 +166,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+_tables_checked = False
+
 def ensure_tables():
-    if engine:
-        try:
-            Base.metadata.create_all(bind=engine)
-            with engine.connect() as conn:
-                try:
-                    conn.execute(text("ALTER TABLE business_days ADD COLUMN is_manual_opening BOOLEAN DEFAULT FALSE;"))
-                    conn.commit()
-                except Exception:
-                    pass
-                try:
-                    conn.execute(text("ALTER TABLE employees ADD COLUMN initial_loan_debt NUMERIC(10, 2) DEFAULT 0.00;"))
-                    conn.commit()
-                except Exception:
-                    pass
-        except Exception as e:
-            print("Auto create tables error:", e)
+    global _tables_checked
+    if _tables_checked or not engine:
+        return
+    try:
+        Base.metadata.create_all(bind=engine)
+        # محاولة إضافة الأعمدة بأمان تام دون تعطيل السيستم
+        with engine.connect() as conn:
+            try:
+                conn.execute(text("ALTER TABLE business_days ADD COLUMN IF NOT EXISTS is_manual_opening BOOLEAN DEFAULT FALSE;"))
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                conn.execute(text("ALTER TABLE employees ADD COLUMN IF NOT EXISTS initial_loan_debt NUMERIC(10, 2) DEFAULT 0.00;"))
+                conn.commit()
+            except Exception:
+                pass
+        _tables_checked = True
+    except Exception as e:
+        print("ensure_tables notice:", e)
 
 def get_db():
     if not SessionLocal:
-        raise HTTPException(status_code=500, detail="DATABASE_URL not configured properly")
+        raise HTTPException(status_code=500, detail="DATABASE_URL not configured")
     ensure_tables()
     db = SessionLocal()
     try:
@@ -231,7 +237,7 @@ def get_day_remaining(day_obj: BusinessDay, db: Session) -> float:
     total_treasury = opening_tr + cash_collected + transfer_tr
     return total_treasury - total_expenses
 
-# ==================== 5. Pydantic Schemas ====================
+# ==================== 5. Schemas ====================
 class OrderIn(BaseModel):
     booking_date: str
     branch: Optional[str] = None
@@ -321,12 +327,15 @@ class InitialLoanIn(BaseModel):
 @app.get("/api/meta")
 def get_meta(db: Session = Depends(get_db)):
     try:
-        emps = [{
-            "id": e.id, 
-            "name": e.name, 
-            "salary": int(e.basic_salary or 0),
-            "initial_loan_debt": int(e.initial_loan_debt or 0)
-        } for e in db.query(Employee).filter(Employee.is_active == True).all()]
+        raw_emps = db.query(Employee).filter(Employee.is_active == True).all()
+        emps = []
+        for e in raw_emps:
+            emps.append({
+                "id": e.id, 
+                "name": e.name, 
+                "salary": int(e.basic_salary or 0),
+                "initial_loan_debt": int(getattr(e, 'initial_loan_debt', 0) or 0)
+            })
         
         cats = [c.name for c in db.query(ExpenseCategory).filter(ExpenseCategory.is_active == True).all()]
         p_cats = [c.name for c in db.query(PurchaseCategory).filter(PurchaseCategory.is_active == True).all()]
@@ -343,7 +352,8 @@ def get_meta(db: Session = Depends(get_db)):
             "admin_categories": sorted(list(set(a_cats)))
         }
     except Exception as e:
-        return {"error": str(e), "traceback": traceback.format_exc()}
+        print("Meta error:", e)
+        return {"employees": [], "categories": [], "purchase_categories": [], "admin_categories": []}
 
 @app.get("/api/day-summary")
 def get_day_summary(date_str: str, db: Session = Depends(get_db)):
@@ -359,8 +369,7 @@ def get_day_summary(date_str: str, db: Session = Depends(get_db)):
                 business_date=t_d, 
                 status="OPEN", 
                 opening_treasury=prev_remaining, 
-                transfer_treasury=0.0,
-                is_manual_opening=False
+                transfer_treasury=0.0
             )
             db.add(day)
             db.commit()
@@ -407,7 +416,11 @@ def get_day_summary(date_str: str, db: Session = Depends(get_db)):
             }
         }
     except Exception as e:
-        return {"error": str(e), "traceback": traceback.format_exc()}
+        print("Day summary error:", e)
+        return {
+            "day": {"opening_treasury": 0, "transfer_treasury": 0, "cash_collected": 0, "total_treasury": 0, "total_expenses": 0, "remaining_treasury": 0, "is_manual_opening": False},
+            "revenue": {"cash": 0, "insta": 0, "total": 0}
+        }
 
 @app.post("/api/update-treasury")
 def update_treasury(payload: UpdateTreasuryIn, db: Session = Depends(get_db)):
@@ -443,11 +456,9 @@ def reset_opening_treasury(shift_date: str, db: Session = Depends(get_db)):
 def get_bookings(date_str: str, branch: Optional[str] = None, db: Session = Depends(get_db)):
     t_d = datetime.strptime(date_str, "%Y-%m-%d").date()
     q = db.query(Order).filter(Order.booking_date == t_d)
-    
     if branch and branch not in ["الكل", "all", "ALL", ""]:
         clean_branch = normalize_branch(branch)
         q = q.filter(Order.branch == clean_branch)
-        
     orders = q.order_by(Order.id.asc()).all()
     return [{
         "id": o.id,
@@ -519,7 +530,6 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
 
     for item in payload.orders:
         clean_item = {str(k).strip(): v for k, v in item.items() if v is not None}
-
         c_name = str(clean_item.get("customer_name") or clean_item.get("اسم العميل") or clean_item.get("العميل") or "").strip()
         if not c_name: 
             continue
@@ -527,9 +537,7 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
         c_phone = str(clean_item.get("customer_phone") or clean_item.get("الهاتف") or clean_item.get("تليفون") or clean_item.get("رقم التليفون") or clean_item.get("الموبايل") or "").strip()
         w_type = str(clean_item.get("wash_type") or clean_item.get("نوع الغسلة") or clean_item.get("الخدمة") or clean_item.get("نوع الخدمة") or "غسلة عادية").strip()
         is_sub = ("اشتراك" in w_type) or bool(clean_item.get("is_subscription"))
-        
-        row_branch_raw = clean_item.get("branch") or clean_item.get("الفرع") or payload.branch
-        row_branch = normalize_branch(row_branch_raw)
+        row_branch = normalize_branch(clean_item.get("branch") or clean_item.get("الفرع") or payload.branch)
 
         emp_name = str(
             clean_item.get("assigned_employee")
@@ -551,10 +559,7 @@ def add_bulk_bookings(payload: BulkOrdersIn, db: Session = Depends(get_db)):
             db.commit()
             existing_emps[emp_name] = new_emp
 
-        pm_raw = clean_item.get("payment_method") or clean_item.get("طريقة الدفع") or clean_item.get("الدفع")
-        pm = parse_pm(pm_raw)
-
-        price_val = 0.0
+        pm = parse_pm(clean_item.get("payment_method") or clean_item.get("طريقة الدفع") or clean_item.get("الدفع"))
         try:
             price_val = float(clean_item.get("price") or clean_item.get("السعر") or clean_item.get("المبلغ") or clean_item.get("القيمة") or 0)
         except:
@@ -751,7 +756,7 @@ def delete_leave(leave_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# ==================== إدارة السلف والرصيد الافتتاحي والمرتبات ====================
+# ==================== إدارة السلف والرصيد الافتتاحي ====================
 
 @app.post("/api/set-initial-loan")
 def set_initial_loan(payload: InitialLoanIn, db: Session = Depends(get_db)):
@@ -761,87 +766,89 @@ def set_initial_loan(payload: InitialLoanIn, db: Session = Depends(get_db)):
         db.add(emp)
     emp.initial_loan_debt = payload.amount
     db.commit()
-    return {"status": "ok", "employee": emp.name, "initial_loan_debt": int(emp.initial_loan_debt)}
+    return {"status": "ok"}
 
 @app.get("/api/payroll-overview")
 def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(get_db)):
-    s_d = datetime.strptime(start_date, "%Y-%m-%d").date()
-    e_d = datetime.strptime(end_date, "%Y-%m-%d").date()
-    
-    employees = db.query(Employee).filter(Employee.is_active == True).all()
-    expenses = db.query(Expense).filter(Expense.expense_date >= s_d, Expense.expense_date <= e_d).all()
-    penalties = db.query(Penalty).filter(Penalty.penalty_date >= s_d, Penalty.penalty_date <= e_d).all()
-    leaves = db.query(Leave).filter(Leave.leave_date >= s_d, Leave.leave_date <= e_d).all()
-    settlements = db.query(Settlement).filter(Settlement.settlement_date >= s_d, Settlement.settlement_date <= e_d, Settlement.entity_type == "employee").all()
-    
-    all_loans = db.query(Expense).filter(Expense.expense_type == "سلفة").all()
-    all_loan_settlements = db.query(Settlement).filter(Settlement.entity_type == "employee").all()
-
-    payroll_table, advances_overview = [], []
-
-    for emp in employees:
-        b_salary = float(emp.basic_salary or 0)
-        daily_rate = b_salary / 30.0 if b_salary > 0 else 0
-
-        emp_draws = sum([float(e.amount) for e in expenses if e.person_entity == emp.name and e.expense_type == "سحوبات من المرتب"])
-        emp_penalties = sum([float(p.amount) for p in penalties if p.employee_name == emp.name])
-        unpaid_days = len([l for l in leaves if l.employee_name == emp.name and l.leave_type == "على حسابه"])
-        unpaid_deduction = unpaid_days * daily_rate
-
-        # الرصيد الافتتاحي القديم + السلف المسجلة في النظام - كل ما تم سداده
-        init_loan = float(emp.initial_loan_debt or 0)
-        total_loan_ever = init_loan + sum([float(e.amount) for e in all_loans if e.person_entity == emp.name])
-        settled_loan_ever = sum([float(s.amount) for s in all_loan_settlements if s.name == emp.name])
-        current_loan_debt = max(0, total_loan_ever - settled_loan_ever)
-        this_month_settled = sum([float(s.amount) for s in settlements if s.name == emp.name])
-
-        total_deductions_this_month = emp_draws + emp_penalties + unpaid_deduction + this_month_settled
-        net_salary = max(0, b_salary - total_deductions_this_month)
-
-        draw_ratio = (total_deductions_this_month / b_salary * 100) if b_salary > 0 else 0
-        status_color = "green" if draw_ratio <= 35 else ("yellow" if draw_ratio <= 65 else "red")
+    try:
+        s_d = datetime.strptime(start_date, "%Y-%m-%d").date()
+        e_d = datetime.strptime(end_date, "%Y-%m-%d").date()
         
-        emp_history = [{"date": e.expense_date.strftime("%Y-%m-%d"), "amount": int(e.amount), "type": e.expense_type, "notes": e.description or ""} for e in expenses if e.person_entity == emp.name and ("سلف" in e.expense_type or "سحوبات" in e.expense_type)]
+        employees = db.query(Employee).filter(Employee.is_active == True).all()
+        expenses = db.query(Expense).filter(Expense.expense_date >= s_d, Expense.expense_date <= e_d).all()
+        penalties = db.query(Penalty).filter(Penalty.penalty_date >= s_d, Penalty.penalty_date <= e_d).all()
+        leaves = db.query(Leave).filter(Leave.leave_date >= s_d, Leave.leave_date <= e_d).all()
+        settlements = db.query(Settlement).filter(Settlement.settlement_date >= s_d, Settlement.settlement_date <= e_d, Settlement.entity_type == "employee").all()
+        
+        all_loans = db.query(Expense).filter(Expense.expense_type == "سلفة").all()
+        all_loan_settlements = db.query(Settlement).filter(Settlement.entity_type == "employee").all()
 
-        advances_overview.append({
-            "name": emp.name, 
-            "basic_salary": int(b_salary), 
-            "initial_loan_debt": int(init_loan),
-            "monthly_draws": int(emp_draws),
-            "loan_installment": int(this_month_settled), 
-            "total_monthly_commitment": int(total_deductions_this_month), 
-            "total_loan_debt": int(current_loan_debt), 
-            "draw_ratio": int(draw_ratio), 
-            "status_color": status_color, 
-            "history": emp_history
-        })
+        payroll_table, advances_overview = [], []
 
-        payroll_table.append({
-            "name": emp.name, 
-            "basic_salary": int(b_salary), 
-            "draws": int(emp_draws), 
-            "loan_installment": int(this_month_settled), 
-            "penalties": int(emp_penalties), 
-            "unpaid_days": unpaid_days, 
-            "unpaid_deduction": int(unpaid_deduction), 
-            "total_deductions": int(total_deductions_this_month), 
-            "net_salary": int(net_salary)
-        })
+        for emp in employees:
+            b_salary = float(emp.basic_salary or 0)
+            daily_rate = b_salary / 30.0 if b_salary > 0 else 0
 
-    # ملخص كلي لسلف كل الموظفين
-    total_all_loans_debt = sum([a["total_loan_debt"] for a in advances_overview])
-    total_all_monthly_draws = sum([a["monthly_draws"] for a in advances_overview])
-    total_all_installments = sum([a["loan_installment"] for a in advances_overview])
+            emp_draws = sum([float(e.amount) for e in expenses if e.person_entity == emp.name and e.expense_type == "سحوبات من المرتب"])
+            emp_penalties = sum([float(p.amount) for p in penalties if p.employee_name == emp.name])
+            unpaid_days = len([l for l in leaves if l.employee_name == emp.name and l.leave_type == "على حسابه"])
+            unpaid_deduction = unpaid_days * daily_rate
 
-    return {
-        "advances_overview": advances_overview, 
-        "payroll_table": payroll_table,
-        "loans_summary": {
-            "total_outstanding_loans": int(total_all_loans_debt),
-            "total_monthly_draws": int(total_all_monthly_draws),
-            "total_monthly_installments": int(total_all_installments)
+            init_loan = float(getattr(emp, 'initial_loan_debt', 0) or 0)
+            total_loan_ever = init_loan + sum([float(e.amount) for e in all_loans if e.person_entity == emp.name])
+            settled_loan_ever = sum([float(s.amount) for s in all_loan_settlements if s.name == emp.name])
+            current_loan_debt = max(0, total_loan_ever - settled_loan_ever)
+            this_month_settled = sum([float(s.amount) for s in settlements if s.name == emp.name])
+
+            total_deductions_this_month = emp_draws + emp_penalties + unpaid_deduction + this_month_settled
+            net_salary = max(0, b_salary - total_deductions_this_month)
+
+            draw_ratio = (total_deductions_this_month / b_salary * 100) if b_salary > 0 else 0
+            status_color = "green" if draw_ratio <= 35 else ("yellow" if draw_ratio <= 65 else "red")
+            
+            emp_history = [{"date": e.expense_date.strftime("%Y-%m-%d"), "amount": int(e.amount), "type": e.expense_type, "notes": e.description or ""} for e in expenses if e.person_entity == emp.name and ("سلف" in e.expense_type or "سحوبات" in e.expense_type)]
+
+            advances_overview.append({
+                "name": emp.name, 
+                "basic_salary": int(b_salary), 
+                "initial_loan_debt": int(init_loan),
+                "monthly_draws": int(emp_draws),
+                "loan_installment": int(this_month_settled), 
+                "total_monthly_commitment": int(total_deductions_this_month), 
+                "total_loan_debt": int(current_loan_debt), 
+                "draw_ratio": int(draw_ratio), 
+                "status_color": status_color, 
+                "history": emp_history
+            })
+
+            payroll_table.append({
+                "name": emp.name, 
+                "basic_salary": int(b_salary), 
+                "draws": int(emp_draws), 
+                "loan_installment": int(this_month_settled), 
+                "penalties": int(emp_penalties), 
+                "unpaid_days": unpaid_days, 
+                "unpaid_deduction": int(unpaid_deduction), 
+                "total_deductions": int(total_deductions_this_month), 
+                "net_salary": int(net_salary)
+            })
+
+        total_all_loans_debt = sum([a["total_loan_debt"] for a in advances_overview])
+        total_all_monthly_draws = sum([a["monthly_draws"] for a in advances_overview])
+        total_all_installments = sum([a["loan_installment"] for a in advances_overview])
+
+        return {
+            "advances_overview": advances_overview, 
+            "payroll_table": payroll_table,
+            "loans_summary": {
+                "total_outstanding_loans": int(total_all_loans_debt),
+                "total_monthly_draws": int(total_all_monthly_draws),
+                "total_monthly_installments": int(total_all_installments)
+            }
         }
-    }
+    except Exception as e:
+        print("Payroll error:", e)
+        return {"advances_overview": [], "payroll_table": [], "loans_summary": {"total_outstanding_loans": 0, "total_monthly_draws": 0, "total_monthly_installments": 0}}
 
 @app.post("/api/settlements")
 def add_settlement(payload: SettlementIn, db: Session = Depends(get_db)):
@@ -856,109 +863,101 @@ def delete_settlement(item_id: int, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
-# ==================== تقارير تفصيلية لكل مليم خرج (BI Reports) ====================
+# ==================== تقارير تفصيلية شاملة ====================
 
 @app.get("/api/company-bi")
 def get_company_bi(start_date: str, end_date: str, db: Session = Depends(get_db)):
-    s_d = datetime.strptime(start_date, "%Y-%m-%d").date()
-    e_d = datetime.strptime(end_date, "%Y-%m-%d").date()
-    
-    # 1. الإيرادات
-    orders = db.query(Order).filter(Order.booking_date >= s_d, Order.booking_date <= e_d, Order.status == "done", Order.is_collected == True).all()
-    cash_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
-    insta_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.insta])
-    total_rev = cash_rev + insta_rev
-    total_washes = len(orders)
-    shorouk_rev = sum([float(o.price) for o in orders if o.branch == "الشروق"])
-    madinaty_rev = sum([float(o.price) for o in orders if o.branch == "مدينتي"])
+    try:
+        s_d = datetime.strptime(start_date, "%Y-%m-%d").date()
+        e_d = datetime.strptime(end_date, "%Y-%m-%d").date()
+        
+        orders = db.query(Order).filter(Order.booking_date >= s_d, Order.booking_date <= e_d, Order.status == "done", Order.is_collected == True).all()
+        cash_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.cash])
+        insta_rev = sum([float(o.price) for o in orders if o.payment_method == PaymentMethod.insta])
+        total_rev = cash_rev + insta_rev
+        total_washes = len(orders)
+        shorouk_rev = sum([float(o.price) for o in orders if o.branch == "الشروق"])
+        madinaty_rev = sum([float(o.price) for o in orders if o.branch == "مدينتي"])
 
-    # 2. المصروفات التشغيلية (اليومية)
-    expenses = db.query(Expense).filter(Expense.expense_date >= s_d, Expense.expense_date <= e_d).all()
-    opex_items = [e for e in expenses if e.expense_type not in ["سحوبات من المرتب", "سلفة"]]
-    total_opex = sum([float(e.amount) for e in opex_items])
+        expenses = db.query(Expense).filter(Expense.expense_date >= s_d, Expense.expense_date <= e_d).all()
+        opex_items = [e for e in expenses if e.expense_type not in ["سحوبات من المرتب", "سلفة"]]
+        total_opex = sum([float(e.amount) for e in opex_items])
 
-    # 3. سلف ومسحوبات الفترة
-    total_draws_period = sum([float(e.amount) for e in expenses if e.expense_type == "سحوبات من المرتب"])
-    total_loans_period = sum([float(e.amount) for e in expenses if e.expense_type == "سلفة"])
+        total_draws_period = sum([float(e.amount) for e in expenses if e.expense_type == "سحوبات من المرتب"])
+        total_loans_period = sum([float(e.amount) for e in expenses if e.expense_type == "سلفة"])
 
-    # 4. المشتريات والصيانة
-    purchases = db.query(Purchase).filter(Purchase.purchase_date >= s_d, Purchase.purchase_date <= e_d).all()
-    total_purchases = sum([float(p.amount) for p in purchases])
+        purchases = db.query(Purchase).filter(Purchase.purchase_date >= s_d, Purchase.purchase_date <= e_d).all()
+        total_purchases = sum([float(p.amount) for p in purchases])
 
-    # 5. المصروفات الإدارية
-    admin_exps = db.query(AdminExpense).filter(AdminExpense.expense_date >= s_d, AdminExpense.expense_date <= e_d).all()
-    total_admin = sum([float(a.amount) for a in admin_exps])
+        admin_exps = db.query(AdminExpense).filter(AdminExpense.expense_date >= s_d, AdminExpense.expense_date <= e_d).all()
+        total_admin = sum([float(a.amount) for a in admin_exps])
 
-    # 6. المرتبات الأساسية
-    employees = db.query(Employee).filter(Employee.is_active == True).all()
-    total_salaries_base = sum([float(e.basic_salary or 0) for e in employees])
+        employees = db.query(Employee).filter(Employee.is_active == True).all()
+        total_salaries_base = sum([float(e.basic_salary or 0) for e in employees])
 
-    gross_operating_profit = total_rev - total_opex - total_purchases
-    net_company_profit = gross_operating_profit - total_salaries_base - total_admin
+        gross_operating_profit = total_rev - total_opex - total_purchases
+        net_company_profit = gross_operating_profit - total_salaries_base - total_admin
 
-    cost_per_wash = int(total_opex / total_washes) if total_washes > 0 else 0
-    profit_per_wash = int(total_rev / total_washes) - cost_per_wash if total_washes > 0 else 0
-    payroll_ratio = int((total_salaries_base / total_rev * 100)) if total_rev > 0 else 0
+        cost_per_wash = int(total_opex / total_washes) if total_washes > 0 else 0
+        profit_per_wash = int(total_rev / total_washes) - cost_per_wash if total_washes > 0 else 0
+        payroll_ratio = int((total_salaries_base / total_rev * 100)) if total_rev > 0 else 0
 
-    # 7. التوزيع التفصيلي الشامل لكل مليم خرج من الشركة (All Outflows Breakdown)
-    all_outflows = {}
+        all_outflows = {}
+        for e in opex_items:
+            key = f"تشغيل: {e.expense_type}"
+            all_outflows[key] = all_outflows.get(key, 0) + float(e.amount)
 
-    # تفصيل التشغيل
-    for e in opex_items:
-        key = f"تشغيل: {e.expense_type}"
-        all_outflows[key] = all_outflows.get(key, 0) + float(e.amount)
+        for p in purchases:
+            key = f"مشتريات/صيانة: {p.category}"
+            all_outflows[key] = all_outflows.get(key, 0) + float(p.amount)
 
-    # تفصيل المشتريات والصيانة
-    for p in purchases:
-        key = f"مشتريات/صيانة: {p.category}"
-        all_outflows[key] = all_outflows.get(key, 0) + float(p.amount)
+        for a in admin_exps:
+            key = f"إداري: {a.category}"
+            all_outflows[key] = all_outflows.get(key, 0) + float(a.amount)
 
-    # تفصيل الإدارية والأصول
-    for a in admin_exps:
-        key = f"إداري: {a.category}"
-        all_outflows[key] = all_outflows.get(key, 0) + float(a.amount)
+        if total_salaries_base > 0:
+            all_outflows["رواتب الموظفين الأساسية"] = total_salaries_base
+        if total_loans_period > 0:
+            all_outflows["سلف ممنوحة للموظفين"] = total_loans_period
+        if total_draws_period > 0:
+            all_outflows["سحوبات دورية للموظفين"] = total_draws_period
 
-    # إضافة المرتبات والسلف كبنود مستقلة
-    if total_salaries_base > 0:
-        all_outflows["رواتب الموظفين الأساسية"] = total_salaries_base
-    if total_loans_period > 0:
-        all_outflows["سلف ممنوحة للموظفين"] = total_loans_period
-    if total_draws_period > 0:
-        all_outflows["سحوبات دورية للموظفين"] = total_draws_period
+        total_money_spent = sum(all_outflows.values())
 
-    total_money_spent = sum(all_outflows.values())
+        outflows_list = []
+        for k, v in sorted(all_outflows.items(), key=lambda x: x[1], reverse=True):
+            outflows_list.append({
+                "category": k,
+                "amount": int(v),
+                "percentage": round((v / total_money_spent * 100), 1) if total_money_spent > 0 else 0
+            })
 
-    outflows_list = []
-    for k, v in sorted(all_outflows.items(), key=lambda x: x[1], reverse=True):
-        outflows_list.append({
-            "category": k,
-            "amount": int(v),
-            "percentage": round((v / total_money_spent * 100), 1) if total_money_spent > 0 else 0
-        })
-
-    return {
-        "kpis": {
-            "total_revenue": int(total_rev), 
-            "cash_revenue": int(cash_rev), 
-            "insta_revenue": int(insta_rev),
-            "shorouk_revenue": int(shorouk_rev), 
-            "madinaty_revenue": int(madinaty_rev), 
-            "total_washes": total_washes,
-            "total_opex": int(total_opex), 
-            "total_purchases": int(total_purchases), 
-            "total_admin": int(total_admin),
-            "total_salaries": int(total_salaries_base), 
-            "total_loans_given": int(total_loans_period),
-            "total_draws_given": int(total_draws_period),
-            "total_outflows": int(total_money_spent),
-            "gross_profit": int(gross_operating_profit),
-            "net_profit": int(net_company_profit), 
-            "cost_per_wash": cost_per_wash, 
-            "profit_per_wash": profit_per_wash,
-            "payroll_ratio": payroll_ratio
-        },
-        "outflows_breakdown": outflows_list
-    }
+        return {
+            "kpis": {
+                "total_revenue": int(total_rev), 
+                "cash_revenue": int(cash_rev), 
+                "insta_revenue": int(insta_rev),
+                "shorouk_revenue": int(shorouk_rev), 
+                "madinaty_revenue": int(madinaty_rev), 
+                "total_washes": total_washes,
+                "total_opex": int(total_opex), 
+                "total_purchases": int(total_purchases), 
+                "total_admin": int(total_admin),
+                "total_salaries": int(total_salaries_base), 
+                "total_loans_given": int(total_loans_period),
+                "total_draws_given": int(total_draws_period),
+                "total_outflows": int(total_money_spent),
+                "gross_profit": int(gross_operating_profit),
+                "net_profit": int(net_company_profit), 
+                "cost_per_wash": cost_per_wash, 
+                "profit_per_wash": profit_per_wash,
+                "payroll_ratio": payroll_ratio
+            },
+            "outflows_breakdown": outflows_list
+        }
+    except Exception as e:
+        print("Company BI error:", e)
+        return {"kpis": {}, "outflows_breakdown": []}
 
 @app.post("/api/employees")
 def add_employee(name: str, salary: float = 0.0, initial_loan: float = 0.0, db: Session = Depends(get_db)):
