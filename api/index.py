@@ -683,6 +683,19 @@ def add_penalty(payload: PenaltyIn, db: Session = Depends(get_db)):
     db.commit()
     return {"status": "ok"}
 
+# مسار تعديل الخصم
+@app.put("/api/penalties/{penalty_id}")
+def update_penalty(penalty_id: int, payload: PenaltyIn, db: Session = Depends(get_db)):
+    p = db.query(Penalty).get(penalty_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="الخصم غير موجود")
+    p.employee_name = payload.employee_name.strip()
+    p.amount = payload.amount
+    p.penalty_date = datetime.strptime(payload.penalty_date, "%Y-%m-%d").date()
+    p.notes = payload.notes
+    db.commit()
+    return {"status": "ok"}
+
 @app.delete("/api/penalties/{penalty_id}")
 def delete_penalty(penalty_id: int, db: Session = Depends(get_db)):
     db.query(Penalty).filter(Penalty.id == penalty_id).delete()
@@ -749,6 +762,19 @@ def get_leaves(db: Session = Depends(get_db)):
 def add_leave(payload: LeaveIn, db: Session = Depends(get_db)):
     t_d = datetime.strptime(payload.leave_date, "%Y-%m-%d").date()
     db.add(Leave(leave_date=t_d, employee_name=payload.employee_name, leave_type=payload.leave_type, notes=payload.notes))
+    db.commit()
+    return {"status": "ok"}
+
+# مسار تعديل الإجازة
+@app.put("/api/leaves/{leave_id}")
+def update_leave(leave_id: int, payload: LeaveIn, db: Session = Depends(get_db)):
+    l = db.query(Leave).get(leave_id)
+    if not l:
+        raise HTTPException(status_code=404, detail="الإجازة غير موجودة")
+    l.employee_name = payload.employee_name.strip()
+    l.leave_type = payload.leave_type
+    l.leave_date = datetime.strptime(payload.leave_date, "%Y-%m-%d").date()
+    l.notes = payload.notes
     db.commit()
     return {"status": "ok"}
 
@@ -845,7 +871,6 @@ def get_payroll_overview(start_date: str, end_date: str, db: Session = Depends(g
             draw_ratio = (total_deductions_this_month / b_salary * 100) if b_salary > 0 else 0
             status_color = "green" if draw_ratio <= 35 else ("yellow" if draw_ratio <= 65 else "red")
             
-            # تم إضافة id للحركة لتمكين الحذف المباشر لأي سلفة أو سحب مسجل
             emp_history = [{
                 "id": e.id,
                 "date": e.expense_date.strftime("%Y-%m-%d"), 
