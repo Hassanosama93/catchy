@@ -128,7 +128,6 @@
       </div>
     </div>
 
-    <!-- Action Toolbar -->
     <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-sm space-y-3">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2">
@@ -147,7 +146,6 @@
         </div>
       </div>
 
-      <!-- Filters & Instant Search -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
         <select v-model="filterBookingBranch" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none">
           <option value="الكل">📍 كل الفروع</option>
@@ -321,21 +319,105 @@
     </div>
   </div>
 
-  <!-- ================= 3. PENALTIES ================= -->
+  <!-- ================= 3. PENALTIES (الخصومات بالجدول المنظم التفاعلي) ================= -->
   <div v-if="!loading && activeTab === 'penalties'" class="space-y-4">
-    <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
-      <div>
-        <h2 class="text-sm font-bold text-slate-900">⚠️ الخصومات والجزاءات الإدارية</h2>
-        <p class="text-xs text-slate-500">استقطاع إداري على الموظف يُخصم مباشرة من راتبه نهاية الشهر.</p>
+    <!-- شريط الإجراءات والفلترة -->
+    <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 class="text-sm font-bold text-slate-900">⚠️ جدول ملخص خصومات وجزاءات الموظفين</h2>
+          <p class="text-xs text-slate-500">اضغط على أي موظف في الجدول لعرض تواريخ الخصومات بالتفصيل والأسباب.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- تبديل العرض بين الملخص والسجل الزمني -->
+          <button @click="penaltyViewMode = penaltyViewMode === 'summary' ? 'detailed' : 'summary'" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1">
+            {{ penaltyViewMode === 'summary' ? '📜 عرض السجل الزمني' : '📊 عرض ملخص الموظفين' }}
+          </button>
+          <button @click="openPenaltyModal" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow">+ تسجيل خصم جديد</button>
+          <button @click="exportToExcel(penaltiesList, 'الخصومات')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition">📥 Excel</button>
+        </div>
       </div>
-      <div class="flex gap-2">
-        <button @click="openPenaltyModal" class="bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow">+ تسجيل خصم جديد</button>
-        <button @click="exportToExcel(penaltiesList, 'الخصومات')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition">📥 Excel</button>
+
+      <!-- فلتر سريع -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+        <select v-model="filterPenaltyEmployee" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none">
+          <option value="الكل">👤 كل الموظفين</option>
+          <option v-for="emp in meta.employees" :key="emp.name" :value="emp.name">{{ emp.name }}</option>
+        </select>
+        <input type="text" v-model="searchPenaltyText" placeholder="🔍 بحث بالموظف أو السبب..." class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 outline-none">
       </div>
     </div>
 
-    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-      <div v-if="penaltiesList.length" class="overflow-x-auto">
+    <!-- 1. العرض الملخص الذكي لكل موظف مع التوسيع (Accordion) -->
+    <div v-if="penaltyViewMode === 'summary'" class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div v-if="employeePenaltiesSummary.length" class="overflow-x-auto">
+        <table class="w-full text-right text-xs">
+          <thead class="bg-slate-100 text-slate-600 border-b border-slate-200">
+            <tr>
+              <th class="py-3 px-3">الموظف</th>
+              <th class="py-3 px-3 text-center">عدد مرات الخصم</th>
+              <th class="py-3 px-3 text-rose-600 font-black">إجمالي مبالغ الخصومات</th>
+              <th class="py-3 px-3 text-center">التفاصيل والتاريخ</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <template v-for="empSum in employeePenaltiesSummary" :key="empSum.name">
+              <!-- صف الموظف الرئيسي (قابل للنقر) -->
+              <tr @click="empSum.expanded = !empSum.expanded" class="hover:bg-amber-50/50 cursor-pointer transition">
+                <td class="py-3 px-3 font-bold text-slate-900 flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center text-xs font-bold border border-amber-200">👤</span>
+                  <span>{{ empSum.name }}</span>
+                </td>
+                <td class="py-3 px-3 text-center font-bold text-slate-700">
+                  <span class="bg-slate-100 px-2 py-0.5 rounded-full text-xs">{{ empSum.count }} خصم</span>
+                </td>
+                <td class="py-3 px-3 font-black text-rose-600 text-sm">
+                  {{ formatNum(empSum.total_amount) }} ج.م
+                </td>
+                <td class="py-3 px-3 text-center">
+                  <span class="text-xs text-amber-600 font-bold bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200 inline-flex items-center gap-1">
+                    {{ empSum.expanded ? '▲ إخفاء التواريخ' : '▼ عرض التواريخ (' + empSum.count + ')' }}
+                  </span>
+                </td>
+              </tr>
+
+              <!-- الصف المنبثق عند الضغط: جدول التواريخ بالتفصيل لهذا الموظف -->
+              <tr v-if="empSum.expanded" class="bg-slate-50/80">
+                <td colspan="4" class="p-3">
+                  <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-inner">
+                    <table class="w-full text-right text-[11px]">
+                      <thead class="bg-slate-100 text-slate-500 border-b border-slate-200">
+                        <tr>
+                          <th class="py-2 px-3">التاريخ</th>
+                          <th class="py-2 px-3">مبلغ الخصم</th>
+                          <th class="py-2 px-3">السبب / الملاحظات</th>
+                          <th class="py-2 px-3 text-center">حذف</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100">
+                        <tr v-for="p in empSum.items" :key="p.id" class="hover:bg-slate-50">
+                          <td class="py-2 px-3 font-bold text-slate-700">📅 {{ p.date }}</td>
+                          <td class="py-2 px-3 font-black text-rose-600">{{ formatNum(p.amount) }} ج.م</td>
+                          <td class="py-2 px-3 text-slate-600">{{ p.notes || '-' }}</td>
+                          <td class="py-2 px-3 text-center">
+                            <button @click.stop="deletePenalty(p.id)" title="حذف الخصم" class="text-rose-500 hover:text-rose-700 font-bold text-xs p-1">❌</button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+      <div v-else class="text-center py-8 text-slate-400 text-xs">لا توجد خصومات مسجلة تطابق البحث.</div>
+    </div>
+
+    <!-- 2. العرض الزمني الكلاسيكي (في حال أراده المستخدم) -->
+    <div v-else class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div v-if="filteredPenaltiesList.length" class="overflow-x-auto">
         <table class="w-full text-right text-xs">
           <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
             <tr>
@@ -343,7 +425,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="p in penaltiesList" :key="p.id" class="hover:bg-slate-50">
+            <tr v-for="p in filteredPenaltiesList" :key="p.id" class="hover:bg-slate-50">
               <td class="py-2.5 px-3 text-slate-500">{{ p.date }}</td>
               <td class="py-2.5 px-3 font-bold text-slate-900">{{ p.employee }}</td>
               <td class="py-2.5 px-3 font-black text-rose-600">{{ formatNum(p.amount) }} ج.م</td>
@@ -357,21 +439,123 @@
     </div>
   </div>
 
-  <!-- ================= 4. LEAVES ================= -->
+  <!-- ================= 4. LEAVES (الإجازات بالجدول المنظم التفاعلي) ================= -->
   <div v-if="!loading && activeTab === 'leaves'" class="space-y-4">
-    <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex items-center justify-between">
-      <div>
-        <h2 class="text-sm font-bold text-slate-900">🏖️ سجل إجازات وغياب الموظفين</h2>
-        <p class="text-xs text-slate-500">(على حسابه: تخصم يوم أوتوماتيكياً من المرتب | من رصيده أو مرضي: لا تخصم مليم).</p>
+    <!-- شريط الإجراءات والفلترة -->
+    <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 class="text-sm font-bold text-slate-900">🏖️ جدول ملخص إجازات وغياب الموظفين</h2>
+          <p class="text-xs text-slate-500">اضغط على أي موظف لعرض تواريخ إجازاته بالتفصيل. (على حسابه تخصم يوم، من رصيده ومرضي مدفوعة).</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- زر التبديل بين الملخص والسجل الكامل -->
+          <button @click="leaveViewMode = leaveViewMode === 'summary' ? 'detailed' : 'summary'" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition flex items-center gap-1">
+            {{ leaveViewMode === 'summary' ? '📜 عرض السجل الزمني' : '📊 عرض ملخص الموظفين' }}
+          </button>
+          <button @click="openLeaveModal" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow">+ تسجيل إجازة</button>
+          <button @click="exportToExcel(leavesList, 'الإجازات')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition">📥 Excel</button>
+        </div>
       </div>
-      <div class="flex gap-2">
-        <button @click="openLeaveModal" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow">+ تسجيل إجازة</button>
-        <button @click="exportToExcel(leavesList, 'الإجازات')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition">📥 Excel</button>
+
+      <!-- فلتر سريع للموظف والنوع -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-100">
+        <select v-model="filterLeaveEmployee" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none">
+          <option value="الكل">👤 كل الموظفين</option>
+          <option v-for="emp in meta.employees" :key="emp.name" :value="emp.name">{{ emp.name }}</option>
+        </select>
+        <select v-model="filterLeaveType" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none">
+          <option value="الكل">🏷️ كل أنواع الإجازات</option>
+          <option value="من رصيده">من رصيده (مدفوعة)</option>
+          <option value="على حسابه">على حسابه (تخصم يوم)</option>
+          <option value="مرضي">مرضي</option>
+        </select>
+        <input type="text" v-model="searchLeaveText" placeholder="🔍 بحث باسم الموظف أو الملاحظات..." class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 outline-none">
       </div>
     </div>
 
-    <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-      <div v-if="leavesList.length" class="overflow-x-auto">
+    <!-- 1. العرض الملخص المُنظم للموظفين (المطلوب في الصورة) -->
+    <div v-if="leaveViewMode === 'summary'" class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div v-if="employeeLeavesSummary.length" class="overflow-x-auto">
+        <table class="w-full text-right text-xs">
+          <thead class="bg-slate-100 text-slate-600 border-b border-slate-200">
+            <tr>
+              <th class="py-3 px-3">الموظف</th>
+              <th class="py-3 px-3 text-center">من رصيده (مدفوع)</th>
+              <th class="py-3 px-3 text-center text-rose-600">على حسابه (يخصم)</th>
+              <th class="py-3 px-3 text-center">مرضي</th>
+              <th class="py-3 px-3 text-center font-black">إجمالي الأيام</th>
+              <th class="py-3 px-3 text-center">التفاصيل والتواريخ</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100">
+            <template v-for="empSum in employeeLeavesSummary" :key="empSum.name">
+              <!-- صف الموظف الرئيسي -->
+              <tr @click="empSum.expanded = !empSum.expanded" class="hover:bg-orange-50/50 cursor-pointer transition">
+                <td class="py-3 px-3 font-bold text-slate-900 flex items-center gap-2">
+                  <span class="w-6 h-6 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-xs font-bold border border-orange-200">👤</span>
+                  <span>{{ empSum.name }}</span>
+                </td>
+                <td class="py-3 px-3 text-center font-semibold text-emerald-700">
+                  <span class="bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">{{ empSum.balance_days }} يوم</span>
+                </td>
+                <td class="py-3 px-3 text-center font-bold text-rose-700">
+                  <span class="bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full">{{ empSum.unpaid_days }} يوم</span>
+                </td>
+                <td class="py-3 px-3 text-center text-blue-700 font-semibold">
+                  <span class="bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">{{ empSum.sick_days }} يوم</span>
+                </td>
+                <td class="py-3 px-3 text-center font-black text-slate-900 text-sm">
+                  {{ empSum.total_days }} يوم
+                </td>
+                <td class="py-3 px-3 text-center">
+                  <span class="text-xs text-orange-600 font-bold bg-orange-50 px-2.5 py-1 rounded-xl border border-orange-200 inline-flex items-center gap-1">
+                    {{ empSum.expanded ? '▲ إخفاء التواريخ' : '▼ عرض التواريخ (' + empSum.total_days + ')' }}
+                  </span>
+                </td>
+              </tr>
+
+              <!-- الصف المنبثق عند الضغط: تواريخ إجازات هذا الموظف بالتفصيل -->
+              <tr v-if="empSum.expanded" class="bg-slate-50/80">
+                <td colspan="6" class="p-3">
+                  <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-inner">
+                    <table class="w-full text-right text-[11px]">
+                      <thead class="bg-slate-100 text-slate-500 border-b border-slate-200">
+                        <tr>
+                          <th class="py-2 px-3">التاريخ</th>
+                          <th class="py-2 px-3">نوع الإجازة</th>
+                          <th class="py-2 px-3">الملاحظات</th>
+                          <th class="py-2 px-3 text-center">حذف</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100">
+                        <tr v-for="l in empSum.items" :key="l.id" class="hover:bg-slate-50">
+                          <td class="py-2 px-3 font-bold text-slate-700">📅 {{ l.date }}</td>
+                          <td class="py-2 px-3">
+                            <span :class="l.leave_type === 'على حسابه' ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'" class="px-2 py-0.5 rounded-full text-[10px] font-bold border">
+                              {{ l.leave_type }}
+                            </span>
+                          </td>
+                          <td class="py-2 px-3 text-slate-600">{{ l.notes || '-' }}</td>
+                          <td class="py-2 px-3 text-center">
+                            <button @click.stop="deleteLeave(l.id)" title="حذف الإجازة" class="text-rose-500 hover:text-rose-700 font-bold text-xs p-1">❌</button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+      <div v-else class="text-center py-8 text-slate-400 text-xs">لا توجد إجازات مسجلة تطابق البحث.</div>
+    </div>
+
+    <!-- 2. العرض الزمني الكلاسيكي (السجل القديم) -->
+    <div v-else class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <div v-if="filteredLeavesList.length" class="overflow-x-auto">
         <table class="w-full text-right text-xs">
           <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
             <tr>
@@ -379,7 +563,7 @@
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100">
-            <tr v-for="l in leavesList" :key="l.id" class="hover:bg-slate-50">
+            <tr v-for="l in filteredLeavesList" :key="l.id" class="hover:bg-slate-50">
               <td class="py-2.5 px-3 text-slate-500">{{ l.date }}</td>
               <td class="py-2.5 px-3 font-bold text-slate-900">{{ l.employee }}</td>
               <td class="py-2.5 px-3">
@@ -399,8 +583,7 @@
 
   <!-- ================= 5. ADVANCES & LOANS ================= -->
   <div v-if="!loading && activeTab === 'advances'" class="space-y-4">
-    
-    <!-- المربع العلوي: إجمالي مديونيات وسلف الموظفين بالكامل (قابل للنقر) -->
+    <!-- المربع العلوي: إجمالي مديونيات وسلف الموظفين بالكامل -->
     <div class="bg-gradient-to-r from-orange-600 to-amber-600 text-white p-4 sm:p-5 rounded-3xl shadow-lg">
       <div class="flex items-center justify-between mb-3.5 flex-wrap gap-2">
         <div>
@@ -417,9 +600,7 @@
         </div>
       </div>
 
-      <!-- الكروت العلوية الثلاثة -->
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-center">
-        <!-- كرت السلف الكلي (قابل للنقر لفتح الكشف) -->
         <div @click="showLoansDetailsModal = true" class="bg-white/15 hover:bg-white/25 cursor-pointer backdrop-blur-md rounded-2xl p-3 border border-white/30 transition transform hover:-translate-y-0.5 shadow-sm group">
           <div class="flex items-center justify-center gap-1.5 mb-1">
             <span class="text-xs text-orange-100 font-bold">💰 إجمالي السلف القائمة على الموظفين</span>
@@ -440,7 +621,7 @@
       </div>
     </div>
 
-    <!-- Cards Grid with Progress Bars & Direct Loan Edit Buttons -->
+    <!-- Cards Grid with Direct Loan Edit Buttons -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
       <div v-for="adv in payrollData.advances_overview" :key="adv.name" class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
         <div class="flex items-center justify-between">
@@ -460,7 +641,6 @@
           <div :class="progressBarClass(adv.status_color)" :style="{ width: Math.min(100, adv.draw_ratio) + '%' }" class="h-full transition-all duration-500"></div>
         </div>
 
-        <!-- أرقام التفاصيل وزر تعديل السلفة المباشر -->
         <div class="grid grid-cols-3 gap-2 text-center text-xs pt-1">
           <div class="bg-slate-50 p-2 rounded-xl border border-slate-100">
             <span class="text-[10px] text-slate-500 block">سحوبات الشهر</span>
@@ -477,7 +657,6 @@
             </div>
           </div>
 
-          <!-- هنا زر تعديل السلفة الكلية بوضوح فائق -->
           <div class="bg-orange-50/80 p-2 rounded-xl border border-orange-200 flex flex-col justify-between">
             <div class="flex items-center justify-between mb-0.5">
               <span class="text-[10px] text-orange-900 font-bold">باقي السلفة</span>
@@ -489,7 +668,6 @@
           </div>
         </div>
 
-        <!-- حقل قسط الشهر وتعديله -->
         <div class="flex items-center gap-2 pt-1 border-t border-slate-100">
           <input type="number" v-model.number="adv.new_installment" :placeholder="adv.loan_installment > 0 ? 'تعديل القسط الحالي (' + adv.loan_installment + ')...' : 'حدد قسط سلفة هذا الشهر...'" class="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs text-slate-800 outline-none">
           <button @click="saveOrUpdateInstallment(adv)" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition shadow">
@@ -500,7 +678,6 @@
           </button>
         </div>
 
-        <!-- سجل السحوبات مع إمكانية حذف أي حركة بالخطأ -->
         <div class="pt-1">
           <button @click="adv.showHistory = !adv.showHistory" class="text-xs text-slate-500 hover:text-slate-800 font-bold flex items-center gap-1">
             <span>{{ adv.showHistory ? '▲ إخفاء سجل السحب' : '▼ عرض تفاصيل السحوبات بالتاريخ' }}</span>
@@ -878,7 +1055,7 @@
     </div>
   </teleport>
 
-  <!-- 2. نافذة تعديل سلفة موظف محدد (تفتح عند الضغط على زر تعديل السلفة) -->
+  <!-- 2. نافذة تعديل سلفة موظف محدد المباشر -->
   <teleport to="body">
     <div v-if="showEditLoanModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
@@ -1271,28 +1448,29 @@
       const editOpeningTr = ref(0);
       const editTransferTr = ref(0);
 
-      // Penalties State
+      // Penalties State (مع وضع العرض والفلترة)
       const penaltiesList = ref([]);
       const showPenaltyModal = ref(false);
       const penaltyForm = ref({ employee_name: '', amount: null, notes: '' });
+      const penaltyViewMode = ref('summary'); // 'summary' أو 'detailed'
+      const filterPenaltyEmployee = ref('الكل');
+      const searchPenaltyText = ref('');
 
-      // Leaves State
+      // Leaves State (مع وضع العرض والفلترة)
       const leavesList = ref([]);
       const showLeaveModal = ref(false);
       const leaveForm = ref({ employee_name: '', leave_type: 'من رصيده', leave_date: new Date().toISOString().split('T')[0], notes: '' });
+      const leaveViewMode = ref('summary'); // 'summary' أو 'detailed'
+      const filterLeaveEmployee = ref('الكل');
+      const filterLeaveType = ref('الكل');
+      const searchLeaveText = ref('');
 
       // Advances State
       const showAdvanceModal = ref(false);
       const advanceForm = ref({ person_entity: '', expense_type: 'سلفة', amount: null, advance_date: new Date().toISOString().split('T')[0], branch: 'عام', notes: '' });
-
-      // Initial Loan Modal State
       const showInitialLoanModal = ref(false);
       const initialLoanForm = ref({ employee_name: '', amount: null });
-
-      // تفاصيل السلف بالكامل (المودال التفاعلي الجديد)
       const showLoansDetailsModal = ref(false);
-
-      // مودال تعديل سلفة موظف محدد المباشر
       const showEditLoanModal = ref(false);
       const editingAdv = ref(null);
 
@@ -1357,6 +1535,73 @@
         });
       });
 
+      // ==================== دوال وتجميعات الإجازات المنظمة ====================
+      const filteredLeavesList = computed(() => {
+        return (leavesList.value || []).filter(l => {
+          const matchEmp = filterLeaveEmployee.value === 'الكل' || l.employee === filterLeaveEmployee.value;
+          const matchType = filterLeaveType.value === 'الكل' || l.leave_type === filterLeaveType.value;
+          const s = searchLeaveText.value.toLowerCase().trim();
+          const matchSearch = !s || (l.employee && l.employee.toLowerCase().includes(s)) || (l.notes && l.notes.toLowerCase().includes(s));
+          return matchEmp && matchType && matchSearch;
+        });
+      });
+
+      // تجميع الإجازات لكل موظف كملخص تنفيذي ذكي
+      const employeeLeavesSummary = computed(() => {
+        const map = {};
+        filteredLeavesList.value.forEach(l => {
+          if (!map[l.employee]) {
+            map[l.employee] = {
+              name: l.employee,
+              balance_days: 0,
+              unpaid_days: 0,
+              sick_days: 0,
+              total_days: 0,
+              items: [],
+              expanded: false
+            };
+          }
+          map[l.employee].total_days += 1;
+          map[l.employee].items.push(l);
+
+          if (l.leave_type === 'من رصيده') map[l.employee].balance_days += 1;
+          else if (l.leave_type === 'على حسابه') map[l.employee].unpaid_days += 1;
+          else if (l.leave_type === 'مرضي') map[l.employee].sick_days += 1;
+        });
+        return Object.values(map).sort((a, b) => b.total_days - a.total_days);
+      });
+
+      // ==================== دوال وتجميعات الخصومات المنظمة ====================
+      const filteredPenaltiesList = computed(() => {
+        return (penaltiesList.value || []).filter(p => {
+          const matchEmp = filterPenaltyEmployee.value === 'الكل' || p.employee === filterPenaltyEmployee.value;
+          const s = searchPenaltyText.value.toLowerCase().trim();
+          const matchSearch = !s || (p.employee && p.employee.toLowerCase().includes(s)) || (p.notes && p.notes.toLowerCase().includes(s));
+          return matchEmp && matchSearch;
+        });
+      });
+
+      // تجميع الخصومات لكل موظف كملخص تنفيذي
+      const employeePenaltiesSummary = computed(() => {
+        const map = {};
+        filteredPenaltiesList.value.forEach(p => {
+          if (!map[p.employee]) {
+            map[p.employee] = {
+              name: p.employee,
+              count: 0,
+              total_amount: 0,
+              items: [],
+              expanded: false
+            };
+          }
+          map[p.employee].count += 1;
+          map[p.employee].total_amount += Number(p.amount || 0);
+          map[p.employee].items.push(p);
+        });
+        return Object.values(map).sort((a, b) => b.total_amount - a.total_amount);
+      });
+
+      // Date Pickers
       const changeDayOffset = (days) => {
         const d = new Date(shiftDate.value);
         d.setDate(d.getDate() + days);
@@ -1671,7 +1916,6 @@
         loadMeta();
       };
 
-      // زر فتح تعديل سلفة موظف محدد المباشر
       const openEditLoanModal = (adv) => {
         editingAdv.value = { ...adv };
         showEditLoanModal.value = true;
@@ -1695,7 +1939,6 @@
         loadMeta();
       };
 
-      // تعديل وإلغاء قسط السلفة المرن
       const editExistingInstallment = (adv) => {
         adv.new_installment = adv.loan_installment;
       };
@@ -1880,8 +2123,8 @@
         activeTab, loading, shiftDate, daySummary, meta,
         bookingsList, filterBookingBranch, searchBookingText, showWalkInModal, walkInForm, filteredBookings,
         expensesList, showExpenseModal, expenseForm, showEditTreasuryModal, editOpeningTr, editTransferTr, resetToAutoOpening,
-        penaltiesList, showPenaltyModal, penaltyForm,
-        leavesList, showLeaveModal, leaveForm,
+        penaltiesList, showPenaltyModal, penaltyForm, penaltyViewMode, filterPenaltyEmployee, searchPenaltyText, filteredPenaltiesList, employeePenaltiesSummary,
+        leavesList, showLeaveModal, leaveForm, leaveViewMode, filterLeaveEmployee, filterLeaveType, searchLeaveText, filteredLeavesList, employeeLeavesSummary,
         showAdvanceModal, advanceForm, openAdvanceModal, saveAdvance,
         showInitialLoanModal, initialLoanForm, saveInitialLoan,
         showLoansDetailsModal, showEditLoanModal, editingAdv, openEditLoanModal, saveEditedLoan,
