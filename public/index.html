@@ -74,36 +74,36 @@
     </div>
   </header>
 
-  <!-- ================= DESKTOP NAVIGATION TABS ================= -->
-  <div class="no-print hidden md:flex flex-wrap gap-1.5 mb-5 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
-    <button @click="switchTab('bookings')" :class="tabClass('bookings')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+  <!-- ================= UNIVERSAL NAVIGATION TABS (ظاهرة على الموبايل والتابلت واللابتوب بتمرير أفقي سلس) ================= -->
+  <div class="no-print flex overflow-x-auto whitespace-nowrap gap-1.5 mb-5 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
+    <button @click="switchTab('bookings')" :class="tabClass('bookings')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       📋 الحجوزات
     </button>
-    <button @click="switchTab('treasury')" :class="tabClass('treasury')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+    <button @click="switchTab('treasury')" :class="tabClass('treasury')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       🏦 العهدة والمصروفات
     </button>
-    <button @click="switchTab('penalties')" :class="tabClass('penalties')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+    <button @click="switchTab('penalties')" :class="tabClass('penalties')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       ⚠️ الخصومات
     </button>
-    <button @click="switchTab('leaves')" :class="tabClass('leaves')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+    <button @click="switchTab('leaves')" :class="tabClass('leaves')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       🏖️ الإجازات
     </button>
-    <button @click="switchTab('advances')" :class="tabClass('advances')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+    <button @click="switchTab('advances')" :class="tabClass('advances')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       💳 السحوبات والسلف
     </button>
-    <button @click="switchTab('payroll')" :class="tabClass('payroll')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+    <button @click="switchTab('payroll')" :class="tabClass('payroll')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       💰 المرتبات
     </button>
-    <button @click="switchTab('purchases')" :class="tabClass('purchases')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+    <button @click="switchTab('purchases')" :class="tabClass('purchases')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       🛠️ المشتريات والصيانة
     </button>
-    <button @click="switchTab('admin_exp')" :class="tabClass('admin_exp')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+    <button @click="switchTab('admin_exp')" :class="tabClass('admin_exp')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       🏛️ مصروفات إدارية
     </button>
-    <button @click="switchTab('reports')" :class="tabClass('reports')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+    <button @click="switchTab('reports')" :class="tabClass('reports')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       📊 تقارير الشركة
     </button>
-    <button @click="switchTab('settings')" :class="tabClass('settings')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+    <button @click="switchTab('settings')" :class="tabClass('settings')" class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0">
       ⚙️ الضبط
     </button>
   </div>
@@ -320,7 +320,7 @@
     </div>
   </div>
 
-  <!-- ================= 3. PENALTIES (الخصومات بالجدول المنظم التفاعلي مع التعديل والإلغاء) ================= -->
+  <!-- ================= 3. PENALTIES ================= -->
   <div v-if="!loading && activeTab === 'penalties'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
       <div class="flex items-center justify-between flex-wrap gap-2">
@@ -378,7 +378,6 @@
                 </td>
               </tr>
 
-              <!-- قائمة التواريخ المنبثقة لكل موظف مع أزرار التعديل والإلغاء -->
               <tr v-if="expandedPenaltyEmps[empSum.name]" class="bg-slate-50/90">
                 <td colspan="4" class="p-3">
                   <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
@@ -448,7 +447,7 @@
     </div>
   </div>
 
-  <!-- ================= 4. LEAVES (الإجازات بالجدول المنظم مع التعديل والإلغاء) ================= -->
+  <!-- ================= 4. LEAVES ================= -->
   <div v-if="!loading && activeTab === 'leaves'" class="space-y-4">
     <div class="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm space-y-3">
       <div class="flex items-center justify-between flex-wrap gap-2">
@@ -520,7 +519,6 @@
                 </td>
               </tr>
 
-              <!-- تفاصيل الإجازات المنسدلة لهذا الموظف مع التعديل والحذف -->
               <tr v-if="expandedLeaveEmps[empSum.name]" class="bg-slate-50/90">
                 <td colspan="6" class="p-3">
                   <div class="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
@@ -723,7 +721,7 @@
       </div>
       <div class="flex gap-2">
         <button @click="exportToExcel(payrollData.payroll_table, 'كشف_رواتب_الشهر')" class="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-2 rounded-xl transition">
-          📥 تصدير Excel
+          📥 Excel
         </button>
         <button @click="exportPDF" class="bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs px-3.5 py-2 rounded-xl transition shadow">
           📄 طباعة كشف الإدارة المعتمد
@@ -992,7 +990,7 @@
     </div>
   </div>
 
-  <!-- ================= BOTTOM NAVIGATION BAR (MOBILE) ================= -->
+  <!-- ================= BOTTOM NAVIGATION BAR (MOBILE) مع زر القائمة الكاملة ================= -->
   <nav class="no-print md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-200 px-1 py-2 flex justify-around items-center z-40 shadow-lg">
     <button @click="switchTab('bookings')" :class="activeTab === 'bookings' ? 'text-orange-600 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-0.5 text-[10px]">
       <span class="text-base">📋</span> <span>الحجوزات</span>
@@ -1009,12 +1007,42 @@
     <button @click="switchTab('reports')" :class="activeTab === 'reports' ? 'text-orange-600 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-0.5 text-[10px]">
       <span class="text-base">📊</span> <span>التقارير</span>
     </button>
-    <button @click="switchTab('settings')" :class="activeTab === 'settings' ? 'text-orange-600 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-0.5 text-[10px]">
-      <span class="text-base">⚙️</span> <span>الضبط</span>
+    <!-- زر المزيد لفتح الأقسام الأخرى على الموبايل بلمسة واحدة -->
+    <button @click="showMobileMoreMenu = true" :class="['penalties', 'leaves', 'purchases', 'admin_exp', 'settings'].includes(activeTab) ? 'text-orange-600 font-black' : 'text-slate-400 font-medium'" class="flex flex-col items-center gap-0.5 text-[10px]">
+      <span class="text-base">☰</span> <span>المزيد</span>
     </button>
   </nav>
 
   <!-- ================= MODALS ================= -->
+
+  <!-- نافذة "المزيد" للأقسام على الموبايل -->
+  <teleport to="body">
+    <div v-if="showMobileMoreMenu" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4 z-[9999]">
+      <div class="bg-white rounded-t-3xl sm:rounded-3xl p-5 w-full max-w-sm space-y-4 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+          <h3 class="text-sm font-black text-slate-900">📌 كل أقسام النظام</h3>
+          <button @click="showMobileMoreMenu = false" class="text-slate-400 hover:text-slate-700 font-bold text-lg">✕</button>
+        </div>
+        <div class="grid grid-cols-2 gap-2 text-xs font-bold">
+          <button @click="switchTab('penalties'); showMobileMoreMenu = false;" class="p-3 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-2xl flex items-center gap-2 border border-amber-200">
+            <span>⚠️</span> <span>الخصومات</span>
+          </button>
+          <button @click="switchTab('leaves'); showMobileMoreMenu = false;" class="p-3 bg-orange-50 hover:bg-orange-100 text-orange-800 rounded-2xl flex items-center gap-2 border border-orange-200">
+            <span>🏖️</span> <span>الإجازات</span>
+          </button>
+          <button @click="switchTab('purchases'); showMobileMoreMenu = false;" class="p-3 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-2xl flex items-center gap-2 border border-blue-200">
+            <span>🛠️</span> <span>المشتريات</span>
+          </button>
+          <button @click="switchTab('admin_exp'); showMobileMoreMenu = false;" class="p-3 bg-purple-50 hover:bg-purple-100 text-purple-800 rounded-2xl flex items-center gap-2 border border-purple-200">
+            <span>🏛️</span> <span>مصروفات إدارية</span>
+          </button>
+          <button @click="switchTab('settings'); showMobileMoreMenu = false;" class="col-span-2 p-3 bg-slate-50 hover:bg-slate-100 text-slate-800 rounded-2xl flex items-center justify-center gap-2 border border-slate-200">
+            <span>⚙️</span> <span>الضبط والإعدادات</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </teleport>
 
   <!-- 1. نافذة تعديل إجازة محددة -->
   <teleport to="body">
@@ -1126,12 +1154,12 @@
     </div>
   </teleport>
 
-  <!-- 4. نافذة تعديل سلفة موظف محدد المباشر -->
+  <!-- 4. نافذة تعديل سلفة موظف محدد -->
   <teleport to="body">
     <div v-if="showEditLoanModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]">
       <div class="bg-white border border-slate-200 rounded-3xl p-5 w-full max-w-sm space-y-3 shadow-2xl">
         <h3 class="text-sm font-bold text-slate-900">✏️ تعديل سلفة الموظف: {{ editingAdv?.name }}</h3>
-        <p class="text-[11px] text-slate-500">يمكنك تعديل رصيد السلفة القديم (قبل السيستم) لتصحيح مديونية الموظف فوراً دون المساس بكاش الدرج اليوم.</p>
+        <p class="text-[11px] text-slate-500">تعديل رصيد السلفة القديم لتصحيح مديونية الموظف فوراً دون المساس بكاش اليوم.</p>
         <div>
           <label class="text-[11px] text-slate-500 font-bold block mb-1">قيمة السلفة القديمة (ج.م):</label>
           <input type="number" v-model.number="editingAdv.initial_loan_debt" placeholder="0" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 outline-none">
@@ -1526,7 +1554,7 @@
       const penaltyViewMode = ref('summary');
       const filterPenaltyEmployee = ref('الكل');
       const searchPenaltyText = ref('');
-      const expandedPenaltyEmps = ref({}); // تتبع توسيع الموظف التفاعلي المضمون
+      const expandedPenaltyEmps = ref({});
       const showEditPenaltyModal = ref(false);
       const editingPenalty = ref({ id: null, employee_name: '', amount: null, penalty_date: '', notes: '' });
 
@@ -1538,7 +1566,7 @@
       const filterLeaveEmployee = ref('الكل');
       const filterLeaveType = ref('الكل');
       const searchLeaveText = ref('');
-      const expandedLeaveEmps = ref({}); // تتبع توسيع الموظف التفاعلي المضمون
+      const expandedLeaveEmps = ref({});
       const showEditLeaveModal = ref(false);
       const editingLeave = ref({ id: null, employee_name: '', leave_type: 'من رصيده', leave_date: '', notes: '' });
 
@@ -1550,6 +1578,9 @@
       const showLoansDetailsModal = ref(false);
       const showEditLoanModal = ref(false);
       const editingAdv = ref(null);
+
+      // Mobile Menu State
+      const showMobileMoreMenu = ref(false);
 
       // Purchases & Admin Exp State
       const purchasesList = ref([]);
@@ -1612,7 +1643,7 @@
         });
       });
 
-      // ==================== تجميع الإجازات المنظم ====================
+      // تجميع الإجازات
       const filteredLeavesList = computed(() => {
         return (leavesList.value || []).filter(l => {
           const matchEmp = filterLeaveEmployee.value === 'الكل' || l.employee === filterLeaveEmployee.value;
@@ -1672,7 +1703,7 @@
         loadPayroll();
       };
 
-      // ==================== تجميع الخصومات المنظم ====================
+      // تجميع الخصومات
       const filteredPenaltiesList = computed(() => {
         return (penaltiesList.value || []).filter(p => {
           const matchEmp = filterPenaltyEmployee.value === 'الكل' || p.employee === filterPenaltyEmployee.value;
@@ -2260,6 +2291,7 @@
         showAdvanceModal, advanceForm, openAdvanceModal, saveAdvance,
         showInitialLoanModal, initialLoanForm, saveInitialLoan,
         showLoansDetailsModal, showEditLoanModal, editingAdv, openEditLoanModal, saveEditedLoan,
+        showMobileMoreMenu,
         editExistingInstallment, saveOrUpdateInstallment, cancelInstallment, deleteHistoryExpense,
         purchasesList, showPurchaseModal, purchaseForm,
         adminExpList, showAdminExpModal, adminExpForm,
